@@ -779,8 +779,8 @@ spatial_consensus$single_target_fasta <- spatial_consensus$fasta
 
 for (i in c(1:nrow(spatial_consensus))){ #loop through each row of the consensus_sequence dataframe df
   for (j in c(1:nrow(snps_within_spatial_radtags_0.01))){
-    if(spatial_consensus[i,1] == snps_within_spatial_radtags_0.01[j,3] && snps_within_spatial_radtags_0.01[j,13] == TRUE){ if(str_sub(spatial_consensus[i,10],snps_within_spatial_radtags_0.01[j,4],snps_within_spatial_radtags_0.01[j,4]) == "Y"){(str_sub(spatial_consensus[i,10], snps_within_spatial_radtags_0.01[j,4],snps_within_spatial_radtags_0.01[j,4]) <- "[C/T]" )}
-    else if(str_sub(spatial_consensus[i,8],snps_within_spatial_radtags_0.01[j,4],snps_within_spatial_radtags_0.01[j,4]) == "R"){(str_sub(spatial_consensus[i,10], snps_within_spatial_radtags_0.01[j,4],snps_within_spatial_radtags_0.01[j,4]) <- "[A/G]" )}
+    if(spatial_consensus[i,1] == snps_within_spatial_radtags_0.01[j,3] && snps_within_spatial_radtags_0.01[j,14] == TRUE){ if(str_sub(spatial_consensus[i,10],snps_within_spatial_radtags_0.01[j,4],snps_within_spatial_radtags_0.01[j,4]) == "Y"){(str_sub(spatial_consensus[i,10], snps_within_spatial_radtags_0.01[j,4],snps_within_spatial_radtags_0.01[j,4]) <- "[C/T]" )}
+    else if(str_sub(spatial_consensus[i,10],snps_within_spatial_radtags_0.01[j,4],snps_within_spatial_radtags_0.01[j,4]) == "R"){(str_sub(spatial_consensus[i,10], snps_within_spatial_radtags_0.01[j,4],snps_within_spatial_radtags_0.01[j,4]) <- "[A/G]" )}
     else if(str_sub(spatial_consensus[i,10],snps_within_spatial_radtags_0.01[j,4],snps_within_spatial_radtags_0.01[j,4]) == "S"){(str_sub(spatial_consensus[i,10], snps_within_spatial_radtags_0.01[j,4],snps_within_spatial_radtags_0.01[j,4]) <- "[G/C]" )}
     else if(str_sub(spatial_consensus[i,10],snps_within_spatial_radtags_0.01[j,4],snps_within_spatial_radtags_0.01[j,4]) == "W"){(str_sub(spatial_consensus[i,10], snps_within_spatial_radtags_0.01[j,4],snps_within_spatial_radtags_0.01[j,4]) <- "[A/T]" )}
     else if(str_sub(spatial_consensus[i,10],snps_within_spatial_radtags_0.01[j,4],snps_within_spatial_radtags_0.01[j,4]) == "K"){(str_sub(spatial_consensus[i,10], snps_within_spatial_radtags_0.01[j,4],snps_within_spatial_radtags_0.01[j,4]) <- "[G/T]" )}
@@ -794,7 +794,7 @@ now write all this to a file
 spatial_consensus <- left_join(spatial_consensus, select(filter(snps_within_spatial_radtags_0.01, target_snp == TRUE), catalog_id, pos), by = c("catalog_id" = "catalog_id"))
 
 spatial_consensus$snp_id <- paste(spatial_consensus$contig, spatial_consensus$pos.y, sep = "_") 
-write_tsv(select(spatial_consensus, snp_id, single_target_fasta), file = "panel_info/spatial_snp.fasta") 
+write_tsv(select(spatial_consensus, snp_id, single_target_fasta), file = "panel_info/spatial_snp2.fasta") 
 #edited in texteditor to fasta format with snpID_spatial (format: contig_pos) as sequence name
 ```
 
@@ -1655,7 +1655,7 @@ __Vaux (N-S) SNPs__
 # here we pulled a line from the fasta file, then pulled the corresponding line from the consensus sequence (according to catalog ID), then we used the samples.fa file to pull the individual calls at these stacks, sorted the most common according to count (sort | uniq -c) and lined them all up in a text editor
 
 ########################################################################################
->BADN01075352.1_4764_fst  stack:ÿ730808  strand +
+>BADN01075352.1_4764_fst  stack:ï¿½730808  strand +
 
                 TGCAGAACCTCTTCCCAGGA[C/T]AGCAGYCCTGTAAAWRACYARACATTGTCAATAAAGTCTTCARARGGMRTCTGGGTGAACTMCTCAGTATCATGAAGCTGGGTGTCTTYRAGAAGATGAAGGCTAGAGTACACRGTAATRAAGGACAGATGAGAGGATTGAAGCATGC
 consensus       TGCAGAACCTCTTCCCAGGA  C  AGCAGCCCTGTAAATAACCAGACATTGTCAATAAAGTCTTCAAAAGGAGTCTGGGTGAACTCCTCAGTATCATGAAGCTGGGTGTCTTCGAGAAGATGAAGGCTAGAGTACACAGTAATGAAGGACAGATGAGAGGATTGAAGCATGC
@@ -1710,7 +1710,7 @@ TGCAGGATACCTTCCTCCTCCACCTCCTCCTCCTCCAAATCCACCACCTACXCAGCTGCCCAGGGAGCYGCCGCAGTTCT
 
 ##########################
 
->BADN01015498.1_6699_fst   ÿ181677  strand: -
+>BADN01015498.1_6699_fst   ï¿½181677  strand: -
 
 FASTA     TGCAGCCACTACATCCTTCCATAGTCCCAGTCAAAGGATTGGAYGGGCTTAATTGGCATCAGAAGTGCCACAATTATGYTCATGATCACTATTGTATGGGTAAAAGAGGAAGGTCAGTAAGAGCATGTWGACAGGTTTCTGATTATGGTGTGAATGCTGATAG[A/C]TATTGTTCTTCTGTGATWATCAATTTGTGCTGTGTAAATGTCATGTATGTGATGACTGTAAGCATGC
 consensus TGCAGCCACTACATCCTTCCATAGTCCCAGTCAAAGGATTGGATGGGCTTAATTGGCATCAGAAGTGCCACAATTATGTTCATGATCACTATTGTATGGGTAAAAGAGGAAGGTCAGTAAGAGCATGTAGACAGGTTTCTGATTATGGTGTGAATGCTGATAG  A  TATTGTTCTTCTGTGATTATCAATTTGTGCTGTGTAAATGTCATGTATGTGATGACTGTAAGCATGC
@@ -1731,7 +1731,7 @@ BADN01015498.1	6536	181677:164:-	T	G	.	PASS	NS=301;AF=0.249
 BADN01015498.1	6518	181677:182:-	A	T	.	PASS	NS=300;AF=0.252
 
 ###############
-ÿ138347  strand +
+ï¿½138347  strand +
 
 FASTA        TGCAGCTGTTTGAATGAGGAGGTTGAGATAGTACAGATCATTGATTAAATAGAGAGTCTGTTAGTGTCGTCCCACTTGCTCTCTGT[C/T]TGTAAGACACTCACTTCTTCACCTTATCAGTTTGGTAGATTAGCTGTGAAAGTAATACCGATGCTGTGAATGCCATCAGATATATTTTAATAGGAACGGTGGCAGCTTGGAATTTACARCCAAYCTCTATACGGATGCATGCAAG
 consensus    TGCAGCTGTTTGAATGAGGAGGTTGAGATAGTACAGATCATTGATTAAATAGAGAGTCTGTTAGTGTCGTCCCACTTGCTCTCTGT  C  TGTAAGACACTCACTTCTTCACCTTATCAGTTTGGTAGATTAGCTGTGAAAGTAATACCGATGCTGTGAATGCCATCAGATATATTTTAATAGGAACGGTGGCAGCTTGGAATTTACAGCCAACCTCTATACGGATGCATGCAAG
@@ -1755,7 +1755,7 @@ neutral checks are a little different, target SNP doesn't have maj/minor consens
 and 
 
 ##########################
->BADN01002266.1_3438_neutral  ÿ	29191   strand: +
+>BADN01002266.1_3438_neutral  ï¿½	29191   strand: +
 
 FASTA     TGCAGTTTCTGAACATGAATCCAGAATTCTCCATTTAGAAAATGACAGCACATACTGTATGCTAGCAYGGAGCTTTAACTGGTCTTGCCAAGGC[A/G]CCATGACCTCYTTAATGAACTGCATGCTTAGATTCTTAGTGTG
     470   TGCAGTTTCTGAACATGAATCCAGAATTCTCCATTTAGAAAATGACAGCACATACTGTATGCTAGCATGGAGCTTTAACTGGTCTTGCCAAGGC  A  CCATGACCTCTTTAATGAACTGCATGCTTAGATTCTTAGTGTG
@@ -1770,7 +1770,7 @@ BADN01002266.1	3438	29191:95:+	A	G	.	PASS	NS=304;AF=0.018
 BADN01002266.1	3449	29191:106:+	T	C	.	PASS	NS=300;AF=0.217
 
 #######################
-ÿ5705	BADN01000445.1	9358	-
+ï¿½5705	BADN01000445.1	9358	-
 
 fasta        TGCAGTTTTGGCTGAAAGGCACCTAGCCTGCGGTGGCGATGGATGCAAATCCAAGCTTCTGATTACCGGGGGCATGAGTATTAGACACCATAYA[C/T]CAGTTCACTACATGACCTCAAACATCCAATGTCACATTTCAGCCTGACACATACATAATAAGTGATTAAYTCCGGATGATTGGAGGGAAAATGCTGATGAAAGGTCCTAATTTATTTGTRGCCATAAAAGCAACACAGGCTGTATGTGTTTGCCAACGGTAGTTTTCACAGCATG
 consensus    TGCAGTTTTGGCTGAAAGGCACCTAGCCTGCGGTGGCGATGGATGCAAATCCAAGCTTCTGATTACCGGGGGCATGAGTATTAGACACCATATA  C  CAGTTCACTACATGACCTCAAACATCCAATGTCACATTTCAGCCTGACACATACATAATAAGTGATTAATTCCGGATGATTGGAGGGAAAATGCTGATGAAAGGTCCTAATTTATTTGTAGCCATAAAAGCAACACAGGCTGTATGTGTTTGCCAACGGTAGTTTTCACAGCATG
