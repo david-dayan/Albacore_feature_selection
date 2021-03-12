@@ -1,0 +1,16 @@
+
+VCFtools - v0.1.13
+(C) Adam Auton and Anthony Marcketta 2009
+
+Parameters as interpreted:
+	--vcf dayan2.snps.vcf
+	--recode-INFO-all
+	--minDP 10
+	--min-meanDP 20
+	--out 0.2
+	--recode
+
+After filtering, kept 332 out of 332 Individuals
+Outputting VCF file...
+After filtering, kept 13572 out of a possible 13579 Sites
+Run Time = 15.00 seconds

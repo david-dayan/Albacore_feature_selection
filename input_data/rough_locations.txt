@@ -1,0 +1,13 @@
+Pop	Name	Latitude	Longitude
+BA	Baja California	31	-118
+CS	Southern California	36	-122
+CN	Northern California	40	-125
+OR	Oregon	44	-125
+WA	Washington	47.5	-125
+BC	British Columbia	51	-130
+HW	Hawaii	19	-158
+HN	NW of Hawaii	33	-163
+JP	Japan	35	143
+PH	Philippine Sea	13	134
+NC	New Caledonia	-22	164
+TS	Tasmania	-42	148

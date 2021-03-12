@@ -1,0 +1,17 @@
+
+VCFtools - v0.1.13
+(C) Adam Auton and Anthony Marcketta 2009
+
+Parameters as interpreted:
+	--vcf 0.3.recode.vcf
+	--exclude bad_inds2
+	--recode-INFO-all
+	--max-missing 0.9
+	--out 0.4
+	--recode
+
+Excluding individuals in 'exclude' list
+After filtering, kept 312 out of 328 Individuals
+Outputting VCF file...
+After filtering, kept 12519 out of a possible 13572 Sites
+Run Time = 13.00 seconds

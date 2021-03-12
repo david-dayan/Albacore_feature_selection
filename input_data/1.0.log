@@ -1,0 +1,15 @@
+
+VCFtools - v0.1.13
+(C) Adam Auton and Anthony Marcketta 2009
+
+Parameters as interpreted:
+	--vcf 0.5.recode.vcf
+	--exclude-positions psv_blacklist.txt
+	--recode-INFO-all
+	--out 1.0
+	--recode
+
+After filtering, kept 312 out of 312 Individuals
+Outputting VCF file...
+After filtering, kept 12354 out of a possible 12430 Sites
+Run Time = 12.00 seconds
