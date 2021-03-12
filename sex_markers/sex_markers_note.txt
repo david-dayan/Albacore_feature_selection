@@ -1,0 +1,9 @@
+SEX MARKERS NOTE
+
+Attached are 2 fasta files labeled male and female, these are derived from multiple 
+individual albacore from each sex.  Males are the heterogametic sex so you’ll see a bunch
+of ambiguity codes in the male sequence.  The Suda and Chiba papers on using the Bluefin
+tuna primers on bluefin and other tuna species target the polymorphisms at positions 
+191,198, 300, 301 but realistically any of the polymorphisms should work.
+
+- JOHN HYDE

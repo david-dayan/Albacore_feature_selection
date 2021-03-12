@@ -1,0 +1,1797 @@
+---
+title: "Primer Design FASTA input"
+output:
+  html_document:
+    df_print: paged
+    code_folding: hide
+    toc: true
+    toc_float: true
+    toc_collapsed: false
+---
+
+```{r, message=FALSE, warning=FALSE}
+require(tidyverse)
+require(knitr)
+```
+
+# Rationale
+
+In this notebook, we develop the raw fasta file from which Nate Campbell will apply his primer design algorithm for the Albacore GTseq panel
+
+Data comes from several sources (stacks runs) so we must be cautious in retrieving this information. 
+
+# Format
+
+Quote from email exchange:
+
+>To get started with primer design I will need a fasta file in this format.
+>
+>Locus123
+AACGACCACAAGAATTTGTGTGCCAG[G/T]AAGATAGGACCCAGCCGATAATAGGACACGT 
+>
+> Any non-target variation should be masked with either an "N" or with a base ambiguity code "K,L,M,R,S...".  Ideally we want about 100 bases of flanking sequence on either side of the target SNP but I realize this isn't always possible with RAD data.  Since the analysis already uses a reference genome, I can use the vcf file to gather flanking sequence data and format the input file for primer design.  Alternatively, since the bluefin reference genome was used for the analysis, I can use consensus target RAD tag sequences to map back to an albacore reference genome and use the map positions to produce the input file for primer design.  Since target loci can come from 3 different analyses, I suggest sending consensus sequences from Stacks tsv files.  I can map these sequences to an albacore reference genome and gather flanking sequence from there for primer design.  
+
+So it looks like Nate needs three files:  
+(1) The reference genome  
+(2) A Fasta formatted file with the full stacks locus containing the SNP/SNPs we are targeting and variants flagged with [T/C]  
+(3) A vcf file with more SNP info  
+
+We could get away with just 1 and 3, but given that our reference genome is from a different species, going from 2 will be an improvement because stacks makes consensus sequences for the stacks loci and these will contain any non-reference variants, even if it is non-polymorphic within the albacore samples and therefore easy to make a bioinformatic mistake and forget to include in the vcf.
+
+We settled on including a single target SNP on each RADtag corresponding to actual SNP from the relevant analysis. Then, including any other SNP on the RADtag with a maf > 1% as a base ambiguity code. 
+
+# Vaux SNPs
+
+## Stacks Catalog
+
+Which is the correct stacks catalog? 
+
+To overcome filtering steps that require a priori knowledge of population structure, Vaux used 9 different stacks runs to conduct the analyses in the ms. As a consequence we must be extra cautious that we build the input file for the panel design from the correct data. 
+
+Here, used the appendix from the ms (table A11) to verify which of the 9 different stacks runs is the catalog used to generate the SNP dataset used for FST outlier analysis in Vaux ms
+
+```{bash, eval = FALSE}
+
+# checked by pulling one of the 84 N-S significant SNPS from table A11, then checking that the stacks catalog number, snp position and chromosome/contig ID
+
+# e.g. SNP 19, the stacks catalog is 23907, the stacks locus start site 12194 + 127 -1 = 12320, and the contig is BADN01001835.1 (for - strand)
+
+zcat ./*/catalog.fa.gz | grep ">23907 pos=BADN01001835.1"
+
+# only one of the many stacks catalogs matched for the loci we checked (SNPs 19, 30, and 80), each search across all stacks catalogs only found a single match between stacks catalog locus number and contig, and for each of these matches the SNP position was perfect
+```
+
+The correct stacks catalog is ori-pac-1 ( full directory location: /dfs/Omalley_Lab/vauxf/STACKS/stacks_out/albacore/ori-pac-1/catalog.fa.gz )
+
+
+## Vaux SNPs Check
+
+Now that we know we have the right SNP catalog matching the table from the supplemental files. Let's quickly check that these are definitely the correct SNPs.
+
+Here we pull these SNPs and check to make sure they strognly differentiate N from S Pac samples.
+
+### Which Filtering Set
+
+Within each of the 9 stacks catalogs, there are many filtering steps. According to table A4, the final set used -p 2 and -r 0.95, however, three different final filtered vcf files match these parameters. 
+
+Below are the actual calls to populations used in each of these three directories:
+
+__ori-pac-1-p2-r95-a__  
+populations -t 25 -P /nfs1/FW_HMSC/OMalley_Lab/vauxf/STACKS/stacks_out/albacore/ori-pac-1 -M /nfs1/FW_HMSC/OMalley_Lab/vauxf/STACKS/population_maps/albacore/12-2P-bam1.txt -r 0.95 -p 2 --min_maf 0.05 --write_single_snp --structure --fstats --fst_correction bonferroni_win --genepop --plink --vcf --hzar --fasta_samples --fasta_loci
+
+Summary: correct stacks catalog, maf filtering, p 2 and r 0.95, no other filtering
+
+__ori-pac-1-p2-r95-a2__  
+populations -t 30 -P /nfs1/FW_HMSC/OMalley_Lab/vauxf/STACKS/stacks_out/albacore/ori-pac-1 -M /nfs1/FW_HMSC/OMalley_Lab/vauxf/STACKS/population_maps/albacore/12-2P-bam1.txt -B /nfs1/FW_HMSC/OMalley_Lab/vauxf/STACKS/blacklists/albacore/ori-pac-1-p2-r90-PSV-LD-C1.blacklist -r 0.95 -p 2 --min_maf 0.05 --write_single_snp --structure --fstats --fst_correction bonferroni_win --genepop --plink --vcf --hzar --fasta_samples --fasta_loci
+
+Summary: correct stacks catalog,  maf filtering, p 2 and r 0.95, PSV and LD filtering using the C1 blacklist (971 markers)
+
+__ori-pac-1-p2-r95-a3__   
+populations -t 30 -P /nfs1/FW_HMSC/OMalley_Lab/vauxf/STACKS/stacks_out/albacore/ori-pac-1 -M /nfs1/FW_HMSC/OMalley_Lab/vauxf/STACKS/population_maps/albacore/12-2P-bam1.txt -B /nfs1/FW_HMSC/OMalley_Lab/vauxf/STACKS/blacklists/albacore/ori-pac-1-p2-r90-PSV-LD-C2.blacklist -r 0.95 -p 2 --min_maf 0.05 --write_single_snp --structure --fstats --fst_correction bonferroni_win --genepop --plink --vcf --hzar --fasta_samples --fasta_loci
+
+Summary: correct stacks catalog,  maf filtering, p 2 and r 0.95, PSV and LD filtering using the C2 blacklist (1490 markers)
+
+__Correct Final Filtered Dataset__  
+
+Using the information in table 2 and table a4, ori-pac-1-p2-r95-a3 is a perfect match to the manuscript. The correct vcf file is at /dfs/Omalley_Lab/vauxf/STACKS/stacks_out/albacore/ori-pac-1/ori-pac-1-p2-r95-a3/ori-pac-1-p2-r95-a3.vcf and locally at ./input_data/vaux_data/ori-pac-1-p2-r95-a3.vcf
+
+
+## N-S Fst Outliers Metadata
+
+Here we write a file of the 84 SNPs in the correct format for Campbell's script and write associated metadata for these SNPs to keep for the long run. 
+
+First we get info about the SNPs from table A11.
+
+```{r, warning=FALSE, message=FALSE, eval = FALSE}
+# copied table a11 into text editor and formated into tsv
+n_s_84_info <- read_tsv("panel_info/n_s_84_info.txt")
+
+# next lets collect the correct SNP position, note this differs between + and - strand
+
+# lets also create a standardized (across all stacks runs) name for SNPs based on the reference genome and mapping position
+
+n_s_84_info <- n_s_84_info %>%
+  mutate(stack_pos_contig = case_when(
+    strand == "-" ~ snp_pos_contig + stacks_locus_pos -1,
+    strand == "+" ~ snp_pos_contig - stacks_locus_pos +1)) %>%
+  mutate(snpID = paste(contig, snp_pos_contig, sep = "_"))
+
+# lets create a standardized (across all stacks runs) name for SNPs based on the reference genome and mapping position
+
+write_tsv(n_s_84_info, file = "panel_info/n_s_84_info.txt")
+```
+
+Then we write out a file with the information Campbell will need to run the script. See section "format" above.  
+
+## Nearby variants
+
+One issue here is that the populations run used --write-single-SNP. We want to flag all variants near the target locus to make sure primer and probe design will not fail due to unaccounted for variation. We will need to run populations again without this option and check the resulting vcf file for nearby variants.   
+Another concern is skipping lower MAF variants nearby that will lead to allele dropout in the GTseq panel runs if not accounted for now. Given that the majority of variation (as estimated in the unbiased/filtered SFS) occurs at relatively rare SNPs in this species (i.e. less than maf: 0.05), it seems important to not lose this information. Therefore dropping the MAF filtering and including a MAC filter of 3 (i.e. SNP must be seen in at least 2 individuals to be retained), might be better way to check for nearby SNPs to our target SNPs, even if MAF 5% may be justified for final analyses.
+
+```{bash, eval = FALSE}
+
+# from the dir /dfs/Omalley_Lab/dayan/albacore/feature_selection/stacks/vaux_run_multisnp
+
+
+SGE_Batch -q chinook -P 30 -f 30G -m 36G -c '/local/cluster/stacks/stacks-2.41/bin/populations -t 30 -P /dfs/Omalley_Lab/vauxf/STACKS/stacks_out/albacore/ori-pac-1 -M /dfs/Omalley_Lab/vauxf/STACKS/population_maps/albacore/12-2P-bam1.txt -B /dfs/Omalley_Lab/vauxf/STACKS/blacklists/albacore/ori-pac-1-p2-r90-PSV-LD-C2.blacklist -r 0.95 -p 2 --min_mac 3 --vcf --fasta_loci -O /dfs/Omalley_Lab/dayan/albacore/feature_selection/stacks/vaux_run_multisnp/' -r vaux_multisnp
+
+```
+
+Now that we have a large panel of variation that does not exlude any snps due to low MAF or being on the same radtag as one of our target SNPs, let's check to make sure there's no SNPs next to our target 84 that will mess up primer/probe design.
+
+To accomplish this we'll draw 300bp windows centered over the the target SNP and filter the vcf for these windows. We'll use GATK's variant filter to flag SNPs within a 300bp wide snp cluster, then check if any of our 84 SNPs are flagged
+
+```{bash, eval = FALSE}
+# note, could just cut the variant positions and chr, write to a file read into R and do the analysis without having to invoke GATK and a 2gb vcf file, this is definitely worth avoiding in the future
+
+#first indexed the reference with samtools faidx, then created a sequence dictionary for GATK with:
+
+SGE_Batch -q harold -r dict -c "java -jar /local/cluster/picard-tools-2.0.1/dist/picard.jar CreateSequenceDictionary R=/dfs/Omalley_Lab/dayan/genomes/albacore/GCA_000418415_Thunnus_orientalis.fna O=GCA_000418415_Thunnus_orientalis.fna.dict"
+
+# then sort the vcf according to the sequence dict...... aaaaah I hate using GATK, why did I do this to myself...
+SGE_Batch -q harold -r sort -c "java -jar /local/cluster/picard-tools-2.0.1/dist/picard.jar SortVcf I=populations.snps.vcf SD=/dfs/Omalley_Lab/dayan/genomes/albacore/GCA_000418415_Thunnus_orientalis.fna.dict O=sorted.vcf"
+
+# then run the filter
+SGE_Batch -q harold -r snp_cluster -c "java -jar /local/cluster/GenomeAnalysisTK-3.5/GenomeAnalysisTK.jar -T VariantFiltration -R /dfs/Omalley_Lab/dayan/genomes/albacore/GCA_000418415_Thunnus_orientalis.fna -V /dfs/Omalley_Lab/dayan/albacore/feature_selection/stacks/vaux_run_multisnp/sorted.vcf --clusterSize 2 --clusterWindowSize 300 --out cluster_filter.vcf"
+
+
+# then write the flag and pos info to a file (work with more easily)
+grep -v "^#" cluster_filter.vcf | cut -f 1,2,7 > cluster_filter_pass.txt
+
+
+```
+
+```{r, message=FALSE, warning=FALSE}
+n_s_84_info <- read_tsv("panel_info/n_s_84_info.txt")
+clust <- read_tsv("input_data/vaux_data/cluster_filter_pass.txt", col_names = FALSE)
+colnames(clust) <- c("chr", "pos", "filter")
+clust$snpID <- paste(clust$chr, clust$pos, sep = "_")
+n_s_84_info <- n_s_84_info %>%
+  left_join(select(clust, snpID, filter))
+
+sum(n_s_84_info$filter == "SnpCluster")
+```
+
+79 of 84 have a SNP within 300bp of the target SNP. How many per each SNP and what is the are the allele frequency. Here, let's limit ourselves to SNPs present on the same tag (mean radtag was 235bp and very few were covered by multiple loci (2.3%), so we're probably good to just consider radtags here because 98% of the time we don't have any idea what going on in the flanking sequence anyway)
+
+```{bash, eval = FALSE}
+# here we print out all the SNPs on the radtags of our target SNPs
+# run this on an interactive shell on the server (with bash)
+
+RADTAGS="20427:
+20527:
+20599:
+20615:
+20690:
+20744:
+20747:
+20860:
+20875:
+21082:
+21085:
+21159:
+23419:
+23616:
+23804:
+23873:
+23881:
+23901:
+23907:
+23943:
+23913:
+32568:
+72459:
+76427:
+76445:
+76448:
+136651:
+136659:
+136762:
+136715:
+136806:
+168829:
+168842:
+168960:
+180600:
+180651:
+209756:
+209758:
+273473:
+311916:
+312047:
+411695:
+411712:
+411755:
+456853:
+467913:
+486918:
+486922:
+486925:
+486956:
+497213:
+497206:
+497233:
+530671:
+530738:
+596455:
+596492:
+596521:
+650709:
+650743:
+700010:
+705793:
+706224:
+709045:
+709117:
+720069:
+728748:
+730808:
+762062:
+773756:
+776235:
+797025:
+808993:
+847830:
+848274:
+859583:
+859594:
+866549:
+879444:
+879461:
+890951:
+903361:
+978375:
+998124:"
+
+for i in $RADTAGS
+do 
+cut -f 1-8 populations.snps.vcf | grep $i
+done
+
+# rather than working on this code, just took output in a text editor and cleaned up (added header, split fields, deleted match rows where the search string grabbed the suffix of a catalog ID etc)
+```
+
+
+
+```{r, warning=FALSE, message=FALSE}
+snps_within_fst_tags <- read_tsv("input_data/vaux_data/snps_within_fst_radtags.txt")
+num_snps <- snps_within_fst_tags %>%
+  group_by(catalog_id)%>%
+  tally()
+ggplot(data = num_snps)+geom_histogram(aes(num_snps$n))+theme_classic()+ggtitle("number of snps on radtags with 84 fst outlier snps")
+
+snps_within_fst_tags$snpID <- paste(snps_within_fst_tags$chr, snps_within_fst_tags$pos, sep = "_")
+snps_within_fst_tags$target_snp <- snps_within_fst_tags$snpID %in% n_s_84_info$snpID
+
+ggplot(data = filter(snps_within_fst_tags, !(snpID %in% n_s_84_info$snpID)))+geom_histogram(aes(x = maf), binwidth = 0.01)+theme_classic()+ggtitle("maf of non-target SNPs on target SNP radtags\nbin width = 1% maf")
+```
+
+Many of our target SNPs' radtags contain many other SNPs, most of these SNPs are rare (<1% maf), and few are common (> 5% maf). 
+
+Here we need to make a tough decision. We can choose to include SNPs as targets, to mask them (with Ns or base ambiguity codes), or to pretend they don't occur. The more SNPs we include in the final fasta file as targets or masks, the more likely we will be unable to properly design primers because we are adding too many constraints, however, if we are ignoring common SNPs then this will lead to allele dropout in the pipeline down the road.
+
+i.e. too many SNPs included in the fasta file -> marker loss due to no good primers that can capture the target variants. too few SNPs -> we will get a primer that amplifies the target amplicon well, but we'll lose a lot of reads due to null alleles (variants covering primer or probe sequence). I think we should make the decision on the basis of MAF and Nate seems to agree. Very rare variants are unlikely to be important to capture in the panel because our sample sizes won't be big enough to make good use of them and they are unlikely to lead to a ton of lost data because only a small minority of samples will contain the rare SNP. Let's go for a 1% MAF cutoff here. If we go for 5% we'll lose the vast majority of this information.
+
+Another issue stems from the way Nate intimated the primer script works. "If the SNPs are within about 100 bases of each other then theyâ€™ll be captured by a single primer pair" Will call to figure this out for sure, but this makes it seem like including SNPs as targets (rather than masks) at distances greater than 100bp around the SNP we're most interested in can lead to issues (i.e. amplicons that don't cover the target SNP). For this reason I think it might be best to only include bracketed (targeted) SNPs in the region directly around the primary target SNP and mask others using N or base ambiguity codes.
+
+
+## FST Check
+
+Let's check that these 84 are strong N-S FST outliers.
+
+Fortunately there's already a stacks-calculated FST estimate for all stacks loci included the final populations run. We'll check if these 84 are strong outliers in the total distribution.
+
+
+```{r, warning=FALSE, message=FALSE, eval = FALSE}
+fst_stacks <- read_tsv("input_data/vaux_data/populations.fst_NP-SP.tsv")
+
+fst_stacks$outlier_84 <- fst_stacks$`# Locus ID` %in% n_s_84_info$catalog_number  
+ggplot(data = fst_stacks)+geom_density(aes(x = `Corrected AMOVA Fst`, fill = outlier_84), alpha = 0.5)+theme_classic()
+
+fst_stacks$outlier_84 <- fst_stacks$`# Locus ID` %in% n_s_84_info$catalog_number  
+ggplot(data = fst_stacks)+geom_density(aes(x = `Corrected AMOVA Fst`, fill = outlier_84), alpha = 0.5)+theme_classic()+xlim(0, 0.2)
+```
+
+Looks good!!!
+
+## FASTA output
+
+Now the hard part, actually making the FASTA file. Goals are below:  
+
+(1) For each of the 84 shared N-S outlier SNPs, pull down the appropriate RADTag consensus sequence  
+(2) For the target SNP, change to the bracket format  
+(3) For all other SNPs in the RADtag with MAF > 1% set to mask format (base ambiguity codes)
+
+Vaux's supplemental data already has a file of the correct consensus sequences so we can skip ahead here a bit. Let's reformat this as a tibble we can do string operations on in R.
+
+```{r warning=FALSE, message=FALSE, eval = FALSE}
+#took the data in NorSou-outlier-loci.consensus.fa and split into columns in a text editor
+n_s_consensus <- read_tsv("input_data/vaux_data/84_consensus_sequence.txt")
+n_s_consensus$snpID <- paste(n_s_consensus$contig, n_s_consensus$target_snp_position, sep = "_")
+
+snps_459 <- filter(snps_within_fst_tags, maf >=0.01)
+# set which SNPs to set as masks and as targets
+snps_459 <- snps_459 %>%
+  group_by(catalog_id) %>%
+  mutate(catalog_locus_target_pos = catalog_snp_pos[target_snp == TRUE]) %>%
+  mutate(within100bp_window = abs(catalog_snp_pos - catalog_locus_target_pos) <=50)
+    
+
+
+#create data field to edit in look below to change
+n_s_consensus$fasta <- n_s_consensus$sequence
+
+
+#set to iupac codes
+for (i in c(1:nrow(n_s_consensus))){ #loop through each row of the consensus_sequence dataframe df
+  for (j in c(1:nrow(snps_459))){
+    if(n_s_consensus[i,1] == snps_459[j,3]){
+      if(snps_459[j,5] == "+"){
+      if((snps_459[j,6]== "C" && snps_459[j,7]== "T" )| (snps_459[j,6]== "T" && snps_459[j,7]== "C" )){str_sub(n_s_consensus[i,7], snps_459[j,4],snps_459[j,4]) <- "Y" }
+  else if((snps_459[j,6]== "A" && snps_459[j,7]== "G" )| (snps_459[j,6]== "G" && snps_459[j,7]== "A" )){str_sub(n_s_consensus[i,7], snps_459[j,4],snps_459[j,4]) <- "R"}
+  else if((snps_459[j,6]== "A" && snps_459[j,7]== "T" )| (snps_459[j,6]== "T" && snps_459[j,7]== "A" )){str_sub(n_s_consensus[i,7], snps_459[j,4],snps_459[j,4]) <- "W"}
+  else if((snps_459[j,6]== "G" && snps_459[j,7]== "C" )| (snps_459[j,6]== "C" && snps_459[j,7]== "G" )){str_sub(n_s_consensus[i,7], snps_459[j,4],snps_459[j,4]) <- "S"}
+  else if((snps_459[j,6]== "T" && snps_459[j,7]== "G" )| (snps_459[j,6]== "G" && snps_459[j,7]== "T" )){str_sub(n_s_consensus[i,7], snps_459[j,4],snps_459[j,4]) <- "K"}
+  else if((snps_459[j,6]== "C" && snps_459[j,7]== "A" )| (snps_459[j,6]== "A" && snps_459[j,7]== "C" )){str_sub(n_s_consensus[i,7], snps_459[j,4],snps_459[j,4]) <- "M"}
+      }
+      else if(snps_459[j,5] == "-"){ #complement if the strand is negative
+        if((snps_459[j,6]== "C" && snps_459[j,7]== "T" )| (snps_459[j,6]== "T" && snps_459[j,7]== "C" )){str_sub(n_s_consensus[i,7], snps_459[j,4],snps_459[j,4]) <- "R" }
+  else if((snps_459[j,6]== "A" && snps_459[j,7]== "G" )| (snps_459[j,6]== "G" && snps_459[j,7]== "A" )){str_sub(n_s_consensus[i,7], snps_459[j,4],snps_459[j,4]) <- "Y"}
+  else if((snps_459[j,6]== "A" && snps_459[j,7]== "T" )| (snps_459[j,6]== "T" && snps_459[j,7]== "A" )){str_sub(n_s_consensus[i,7], snps_459[j,4],snps_459[j,4]) <- "W"}
+  else if((snps_459[j,6]== "G" && snps_459[j,7]== "C" )| (snps_459[j,6]== "C" && snps_459[j,7]== "G" )){str_sub(n_s_consensus[i,7], snps_459[j,4],snps_459[j,4]) <- "S"}
+  else if((snps_459[j,6]== "T" && snps_459[j,7]== "G" )| (snps_459[j,6]== "G" && snps_459[j,7]== "T" )){str_sub(n_s_consensus[i,7], snps_459[j,4],snps_459[j,4]) <- "M"}
+  else if((snps_459[j,6]== "C" && snps_459[j,7]== "A" )| (snps_459[j,6]== "A" && snps_459[j,7]== "C" )){str_sub(n_s_consensus[i,7], snps_459[j,4],snps_459[j,4]) <- "K"}}
+    }}}
+
+
+# add field for fasta sequence if we only keep one target SNP and store the rest as ambiguity codes
+n_s_consensus$single_target_fasta <- n_s_consensus$fasta
+
+
+# change iupac code to bracket at target SNP
+for (i in c(1:nrow(n_s_consensus))){ #loop through each row of the consensus_sequence dataframe df
+  for (j in c(1:nrow(snps_459))){
+    if(n_s_consensus[i,1] == snps_459[j,3] && snps_459[j,13] == TRUE){ if(str_sub(n_s_consensus[i,8],snps_459[j,4],snps_459[j,4]) == "Y"){(str_sub(n_s_consensus[i,8], snps_459[j,4],snps_459[j,4]) <- "[C/T]" )}
+    else if(str_sub(n_s_consensus[i,8],snps_459[j,4],snps_459[j,4]) == "R"){(str_sub(n_s_consensus[i,8], snps_459[j,4],snps_459[j,4]) <- "[A/G]" )}
+    else if(str_sub(n_s_consensus[i,8],snps_459[j,4],snps_459[j,4]) == "S"){(str_sub(n_s_consensus[i,8], snps_459[j,4],snps_459[j,4]) <- "[G/C]" )}
+    else if(str_sub(n_s_consensus[i,8],snps_459[j,4],snps_459[j,4]) == "W"){(str_sub(n_s_consensus[i,8], snps_459[j,4],snps_459[j,4]) <- "[A/T]" )}
+    else if(str_sub(n_s_consensus[i,8],snps_459[j,4],snps_459[j,4]) == "K"){(str_sub(n_s_consensus[i,8], snps_459[j,4],snps_459[j,4]) <- "[G/T]" )}
+    else if(str_sub(n_s_consensus[i,8],snps_459[j,4],snps_459[j,4]) == "M"){(str_sub(n_s_consensus[i,8], snps_459[j,4],snps_459[j,4]) <- "[A/C]" )}
+    }}} 
+
+########### stop here ########
+### everything below is extra draft code
+
+# loop to convert IUPAC to bracket format at target SNP
+for (i in c(1:nrow(n_s_consensus))){ #loop through each row of the consensus_sequence dataframe df
+  for (j in c(1:nrow(snps_459))){
+    if(n_s_consensus[i,1] == snps_459[j,3] && snps_459[j,13] == TRUE){ (str_sub(n_s_consensus[i,8], snps_459[j,4],snps_459[j,4]) <- paste("[", snps_459[j,6], "/", snps_459[j,7], "]", sep = "") )} 
+    }} 
+
+
+#everything below here does not work yet, keeping as draft if we decide to keep multiple target SNPs
+
+# now for each catalog id, add sequence data, modify the sequence using the bracket format at the indexes where within100bp_window==TRUE
+snps_459 %>%
+  left_join(select(n_s_consensus, sequence, stacks_catalog_number), by = c( "catalog_id"= "stacks_catalog_number")) %>%
+  mutate(sequence_edit = if_else(within100bp_window == TRUE, (str_sub(sequence, catalog_snp_pos, catalog_snp_pos) <-  paste("[", maj_allele, "/", minor_allele, "]", sep = "")), (str_sub(sequence, catalog_snp_pos, catalog_snp_pos) <-  "N")))
+
+#then convert IUPAC codes to bracket format based on value of within_bp field
+# issue here how to index at multiple positions sequentially if the position keeps changing
+
+for (i in c(1:nrow(n_s_consensus))){ #loop through each row of the consensus_sequence dataframe df
+  for (j in c(1:nrow(snps_459))){
+    if(n_s_consensus[i,1] == snps_459[j,3] && snps_459[j,15] == TRUE){ (str_sub(n_s_consensus[i,7], snps_459[j,4],snps_459[j,4]) <- paste("[", snps_459[j,6], "/", snps_459[j,7], "]", sep = "") )} 
+    }} 
+
+
+for (i in c(1:nrow(n_s_consensus))){ #loop through each row of the consensus_sequence dataframe df
+  for (j in c(1:nrow(snps_459))){
+    if(n_s_consensus[i,1] == snps_459[j,3] && snps_459[j,15] == TRUE){ (str_sub(n_s_consensus[i,7], snps_459[j,4],snps_459[j,4]) <- paste("[", snps_459[j,6], "/", snps_459[j,7], "]", sep = "") )} 
+    else if(n_s_consensus[i,1] == snps_459[j,3] && snps_459[j,15] == FALSE){
+      if(snps_459[j,6] == "C" && snps_459[j,7] == "T" | snps_459[j,7] == "C" && snps_459[j,6] == "T" ){str_sub(n_s_consensus[i,7], snps_459[j,4],snps_459[j,4] <- "Y"}
+    }}} 
+#string substution by index
+str_sub(tmp, 1,1) <- "ZZZ"
+
+```
+
+now lets write this out to a file
+
+```{r, eval = FALSE}
+n_s_consensus <- left_join(n_s_consensus, select(n_s_84_info, stacks_catalog_number, snp_pos_contig), by = c("stacks_catalog_number"="stacks_catalog_number"))
+n_s_consensus$snpID <- paste(n_s_consensus$contig, n_s_consensus$snp_pos_contig, sep = "_")
+write_tsv(select(n_s_consensus, snpID, single_target_fasta), file = "panel_info/n_s_84.fasta")
+#edited in texteditor to fasta format with snpID_spatial (format: contig_pos) as sequence name
+```
+
+# Spatial SNPs
+
+## Overlap/list
+How many of the 60 N-S (axis 1) RDA outlier SNPs are already in the n_s_84 outlier set?
+
+```{r, warning=FALSE, message=FALSE}
+axis1_snps <- read_tsv("panel_info/vaux_snp_rda_outliers_axis1.txt")
+sum(n_s_84_info$stacks_catalog_number %in% axis1_snps$catalog_id)
+```
+
+59 of the 69 SNPs from the spatial outlier analysis are also Fst outliers when comparing N-S populations. Let's include the 10 additional SNPs in the GTseq panel. 
+
+Also let's check that none of the axis 2 SNPs overlap (wouldn't want to have replicate markers as that would cause major issues in QC for the panel)
+
+```{r, warning=FALSE, message=FALSE}
+axis2_snps <- read_tsv("panel_info/vaux_snp_rda_outliers_axis2.txt")
+sum(n_s_84_info$stacks_catalog_number %in% axis2_snps$catalog_id)
+```
+
+Good, zero overlap.
+
+Let's create a set of spatial SNPs (10 axis 1 non-overlapping, plus 104 axis 2) to add to the spatial dataset
+
+```{r}
+tmp1 <- axis1_snps[(!(axis1_snps$catalog_id %in% n_s_84_info$stacks_catalog_number)),]
+tmp1$axis <- "axis1_N_S"
+
+axis2_snps$axis <- "axis2_withinNPAC"
+
+spatial_snps <- bind_rows(axis2_snps, tmp1)
+```
+
+
+## FASTA input
+Here we do the same process as for the N-S 84 SNPs, one hiccup is that we need to pull consensus sequences from the server as there is not a ready made file for these yet.
+
+```{bash, eval = FALSE}
+# in an interactive shell grep'd the matching consensus sequence from the ori-pac-1 catalog
+# bash
+
+RADTAGS=">104326 
+>109132 
+>115557 
+>136448 
+>138347 
+>141149 
+>147730 
+>150172 
+>15700 
+>159096 
+>181677 
+>183668 
+>185613 
+>18740 
+>194817 
+>199642 
+>202208 
+>204656 
+>216080 
+>219235 
+>243320 
+>25138 
+>258007 
+>284065 
+>290270 
+>291650 
+>29625 
+>308444 
+>320822 
+>322903 
+>326736 
+>327054 
+>329610 
+>337582 
+>341413 
+>34349 
+>361068 
+>363674 
+>364114 
+>371922 
+>391431 
+>394743 
+>407057 
+>419604 
+>421328 
+>424522 
+>439613 
+>446597 
+>466893 
+>491117 
+>498633 
+>499586 
+>505545 
+>512079 
+>526073 
+>53731 
+>541305 
+>552149 
+>559731 
+>571968 
+>581411 
+>60553 
+>607130 
+>610080 
+>615481 
+>62855 
+>632841 
+>634955 
+>657973 
+>661076 
+>666413 
+>667910 
+>672178 
+>679289 
+>688927 
+>706137 
+>719187 
+>722465 
+>748916 
+>759493 
+>760971 
+>769641 
+>782263 
+>786681 
+>807437 
+>814781 
+>814883 
+>819299 
+>828680 
+>832192 
+>834267 
+>8447 
+>851426 
+>854337 
+>862084 
+>874896 
+>884707 
+>890745 
+>915715 
+>932271 
+>938942 
+>957207 
+>968649 
+>992711 
+>22896 
+>407057 
+>473152 
+>498575 
+>699988 
+>703387 
+>794655 
+>854337 
+>890745 
+>913269 "
+
+for i in $RADTAGS
+do 
+zcat catalog.fa.gz | grep -A1 -m 1 $i
+done
+
+#then wrote these out to a text editor and edited so it had one column for each data field
+```
+
+```{r, message=FALSE, warning=FALSE}
+spatial_consensus <- read_tsv("input_data/vaux_data/spatial_consensus_sequence.txt")
+
+spatial_consensus <- spatial_consensus %>%
+  left_join(select(spatial_snps, catalog_id, catalog_snp_pos, axis))
+```
+
+make the snp data for masking
+
+```{bash, eval = FALSE}
+# ran this on an interactive shell with bash, used the multisnp vcf file (vcf file from populations with mac 3 filtering, see above)
+# here we print out all the SNPs on the radtags of our target SNPs
+# run this on an interactive shell on the server (with bash)
+RADTAGS="104326:
+109132:
+115557:
+136448:
+138347:
+141149:
+147730:
+150172:
+15700:
+159096:
+181677:
+183668:
+185613:
+18740:
+194817:
+199642:
+202208:
+204656:
+216080:
+219235:
+243320:
+25138:
+258007:
+284065:
+290270:
+291650:
+29625:
+308444:
+320822:
+322903:
+326736:
+327054:
+329610:
+337582:
+341413:
+34349:
+361068:
+363674:
+364114:
+371922:
+391431:
+394743:
+407057:
+419604:
+421328:
+424522:
+439613:
+446597:
+466893:
+491117:
+498633:
+499586:
+505545:
+512079:
+526073:
+53731:
+541305:
+552149:
+559731:
+571968:
+581411:
+60553:
+607130:
+610080:
+615481:
+62855:
+632841:
+634955:
+657973:
+661076:
+666413:
+667910:
+672178:
+679289:
+688927:
+706137:
+719187:
+722465:
+748916:
+759493:
+760971:
+769641:
+782263:
+786681:
+807437:
+814781:
+814883:
+819299:
+828680:
+832192:
+834267:
+8447:
+851426:
+854337:
+862084:
+874896:
+884707:
+890745:
+915715:
+932271:
+938942:
+957207:
+968649:
+992711:
+22896:
+407057:
+473152:
+498575:
+699988:
+703387:
+794655:
+854337:
+890745:
+913269:
+"
+
+for i in $RADTAGS
+do 
+cut -f 1-8 populations.snps.vcf | grep -m 1 $i
+done
+
+```
+
+```{r, message=FALSE, warning=FALSE}
+snps_within_spatial_radtags <- read_tsv("input_data/vaux_data/snps_within_spatial_radtags.txt")
+
+snps_within_spatial_radtags_0.01 <- filter(snps_within_spatial_radtags, maf >= 0.01)
+
+snps_within_spatial_radtags_0.01$snpID <- paste(snps_within_spatial_radtags_0.01$contig, snps_within_spatial_radtags_0.01$pos, sep = "_")
+snps_within_spatial_radtags_0.01$snpID_catalog <- paste(snps_within_spatial_radtags_0.01$catalog_id, snps_within_spatial_radtags_0.01$catalog_snp_pos, sep = "_")
+
+spatial_snps$snp_id_catalog <- paste(spatial_snps$catalog_id, spatial_snps$catalog_snp_pos, sep = "_")
+
+snps_within_spatial_radtags_0.01$target_snp <- snps_within_spatial_radtags_0.01$snpID_catalog %in% spatial_snps$snp_id_catalog
+
+# theres also some duplicate snps across the 2 axes, let's deduplicate the snp_data
+spatial_snps <- spatial_snps %>%
+  distinct(snp_id_catalog, .keep_all = TRUE)
+#deduplicate the consensus sequences
+spatial_consensus <- spatial_consensus %>%
+  distinct(catalog_id, .keep_all = TRUE)
+
+
+
+#now do the masking
+
+
+
+
+#create data field to edit in look below to change
+spatial_consensus$fasta <- spatial_consensus$sequence
+
+#set to iupac codes
+for (i in c(1:nrow(spatial_consensus))){ #loop through each row of the consensus_sequence dataframe df
+  for (j in c(1:nrow(snps_within_spatial_radtags_0.01))){
+    if(spatial_consensus[i,1] == snps_within_spatial_radtags_0.01[j,3]){
+      if(snps_within_spatial_radtags_0.01[j,5] == "+"){
+      if((snps_within_spatial_radtags_0.01[j,6]== "C" && snps_within_spatial_radtags_0.01[j,7]== "T" )| (snps_within_spatial_radtags_0.01[j,6]== "T" && snps_within_spatial_radtags_0.01[j,7]== "C" )){str_sub(spatial_consensus[i,9], snps_within_spatial_radtags_0.01[j,4],snps_within_spatial_radtags_0.01[j,4]) <- "Y" }
+  else if((snps_within_spatial_radtags_0.01[j,6]== "A" && snps_within_spatial_radtags_0.01[j,7]== "G" )| (snps_within_spatial_radtags_0.01[j,6]== "G" && snps_within_spatial_radtags_0.01[j,7]== "A" )){str_sub(spatial_consensus[i,9], snps_within_spatial_radtags_0.01[j,4],snps_within_spatial_radtags_0.01[j,4]) <- "R"}
+  else if((snps_within_spatial_radtags_0.01[j,6]== "A" && snps_within_spatial_radtags_0.01[j,7]== "T" )| (snps_within_spatial_radtags_0.01[j,6]== "T" && snps_within_spatial_radtags_0.01[j,7]== "A" )){str_sub(spatial_consensus[i,9], snps_within_spatial_radtags_0.01[j,4],snps_within_spatial_radtags_0.01[j,4]) <- "W"}
+  else if((snps_within_spatial_radtags_0.01[j,6]== "G" && snps_within_spatial_radtags_0.01[j,7]== "C" )| (snps_within_spatial_radtags_0.01[j,6]== "C" && snps_within_spatial_radtags_0.01[j,7]== "G" )){str_sub(spatial_consensus[i,9], snps_within_spatial_radtags_0.01[j,4],snps_within_spatial_radtags_0.01[j,4]) <- "S"}
+  else if((snps_within_spatial_radtags_0.01[j,6]== "T" && snps_within_spatial_radtags_0.01[j,7]== "G" )| (snps_within_spatial_radtags_0.01[j,6]== "G" && snps_within_spatial_radtags_0.01[j,7]== "T" )){str_sub(spatial_consensus[i,9], snps_within_spatial_radtags_0.01[j,4],snps_within_spatial_radtags_0.01[j,4]) <- "K"}
+  else if((snps_within_spatial_radtags_0.01[j,6]== "C" && snps_within_spatial_radtags_0.01[j,7]== "A" )| (snps_within_spatial_radtags_0.01[j,6]== "A" && snps_within_spatial_radtags_0.01[j,7]== "C" )){str_sub(spatial_consensus[i,9], snps_within_spatial_radtags_0.01[j,4],snps_within_spatial_radtags_0.01[j,4]) <- "M"}}
+    else if(snps_within_spatial_radtags_0.01[j,5] == "-"){ #complement if the strand is negative
+        if((snps_within_spatial_radtags_0.01[j,6]== "C" && snps_within_spatial_radtags_0.01[j,7]== "T" )| (snps_within_spatial_radtags_0.01[j,6]== "T" && snps_within_spatial_radtags_0.01[j,7]== "C" )){str_sub(spatial_consensus[i,9], snps_within_spatial_radtags_0.01[j,4],snps_within_spatial_radtags_0.01[j,4]) <- "R" }
+  else if((snps_within_spatial_radtags_0.01[j,6]== "A" && snps_within_spatial_radtags_0.01[j,7]== "G" )| (snps_within_spatial_radtags_0.01[j,6]== "G" && snps_within_spatial_radtags_0.01[j,7]== "A" )){str_sub(spatial_consensus[i,9], snps_within_spatial_radtags_0.01[j,4],snps_within_spatial_radtags_0.01[j,4]) <- "Y"}
+  else if((snps_within_spatial_radtags_0.01[j,6]== "A" && snps_within_spatial_radtags_0.01[j,7]== "T" )| (snps_within_spatial_radtags_0.01[j,6]== "T" && snps_within_spatial_radtags_0.01[j,7]== "A" )){str_sub(spatial_consensus[i,9], snps_within_spatial_radtags_0.01[j,4],snps_within_spatial_radtags_0.01[j,4]) <- "W"}
+  else if((snps_within_spatial_radtags_0.01[j,6]== "G" && snps_within_spatial_radtags_0.01[j,7]== "C" )| (snps_within_spatial_radtags_0.01[j,6]== "C" && snps_within_spatial_radtags_0.01[j,7]== "G" )){str_sub(spatial_consensus[i,9], snps_within_spatial_radtags_0.01[j,4],snps_within_spatial_radtags_0.01[j,4]) <- "S"}
+  else if((snps_within_spatial_radtags_0.01[j,6]== "T" && snps_within_spatial_radtags_0.01[j,7]== "G" )| (snps_within_spatial_radtags_0.01[j,6]== "G" && snps_within_spatial_radtags_0.01[j,7]== "T" )){str_sub(spatial_consensus[i,9], snps_within_spatial_radtags_0.01[j,4],snps_within_spatial_radtags_0.01[j,4]) <- "M"}
+  else if((snps_within_spatial_radtags_0.01[j,6]== "C" && snps_within_spatial_radtags_0.01[j,7]== "A" )| (snps_within_spatial_radtags_0.01[j,6]== "A" && snps_within_spatial_radtags_0.01[j,7]== "C" )){str_sub(spatial_consensus[i,9], snps_within_spatial_radtags_0.01[j,4],snps_within_spatial_radtags_0.01[j,4]) <- "K"}}
+    }}}
+
+
+# add field for fasta sequence if we only keep one target SNP and store the rest as ambiguity codes
+spatial_consensus$single_target_fasta <- spatial_consensus$fasta
+
+for (i in c(1:nrow(spatial_consensus))){ #loop through each row of the consensus_sequence dataframe df
+  for (j in c(1:nrow(snps_within_spatial_radtags_0.01))){
+    if(spatial_consensus[i,1] == snps_within_spatial_radtags_0.01[j,3] && snps_within_spatial_radtags_0.01[j,13] == TRUE){ if(str_sub(spatial_consensus[i,10],snps_within_spatial_radtags_0.01[j,4],snps_within_spatial_radtags_0.01[j,4]) == "Y"){(str_sub(spatial_consensus[i,10], snps_within_spatial_radtags_0.01[j,4],snps_within_spatial_radtags_0.01[j,4]) <- "[C/T]" )}
+    else if(str_sub(spatial_consensus[i,8],snps_within_spatial_radtags_0.01[j,4],snps_within_spatial_radtags_0.01[j,4]) == "R"){(str_sub(spatial_consensus[i,10], snps_within_spatial_radtags_0.01[j,4],snps_within_spatial_radtags_0.01[j,4]) <- "[A/G]" )}
+    else if(str_sub(spatial_consensus[i,10],snps_within_spatial_radtags_0.01[j,4],snps_within_spatial_radtags_0.01[j,4]) == "S"){(str_sub(spatial_consensus[i,10], snps_within_spatial_radtags_0.01[j,4],snps_within_spatial_radtags_0.01[j,4]) <- "[G/C]" )}
+    else if(str_sub(spatial_consensus[i,10],snps_within_spatial_radtags_0.01[j,4],snps_within_spatial_radtags_0.01[j,4]) == "W"){(str_sub(spatial_consensus[i,10], snps_within_spatial_radtags_0.01[j,4],snps_within_spatial_radtags_0.01[j,4]) <- "[A/T]" )}
+    else if(str_sub(spatial_consensus[i,10],snps_within_spatial_radtags_0.01[j,4],snps_within_spatial_radtags_0.01[j,4]) == "K"){(str_sub(spatial_consensus[i,10], snps_within_spatial_radtags_0.01[j,4],snps_within_spatial_radtags_0.01[j,4]) <- "[G/T]" )}
+    else if(str_sub(spatial_consensus[i,10],snps_within_spatial_radtags_0.01[j,4],snps_within_spatial_radtags_0.01[j,4]) == "M"){(str_sub(spatial_consensus[i,10], snps_within_spatial_radtags_0.01[j,4],snps_within_spatial_radtags_0.01[j,4]) <- "[A/C]" )}
+    }}} 
+
+```
+
+now write all this to a file
+```{r, eval = FALSE}
+spatial_consensus <- left_join(spatial_consensus, select(filter(snps_within_spatial_radtags_0.01, target_snp == TRUE), catalog_id, pos), by = c("catalog_id" = "catalog_id"))
+
+spatial_consensus$snp_id <- paste(spatial_consensus$contig, spatial_consensus$pos.y, sep = "_") 
+write_tsv(select(spatial_consensus, snp_id, single_target_fasta), file = "panel_info/spatial_snp.fasta") 
+#edited in texteditor to fasta format with snpID_spatial (format: contig_pos) as sequence name
+```
+
+# Neutral SNPs
+
+## selection and qc
+
+We are going to shoot for 500 snps for the first round of primer design. There are 84 NS SNPs and an additional 111 spatial SNPs. This means we have room for an additional 305 neutral SNPs. 
+
+Given 305 SNPs, we probably have enough to simply randomly sample the genome rather than take any kind of binning strategy to make sure we evenly sample the SFS or physical locations along the genome. We should still check the distributions against the genome wide dataset to make sure we don't wind up with a spectactularly weird/unlucky sample or any strong coverage outliers. 
+
+Much thought was given (not in this log) to the choice between how much to bias the so-called "neutral" SNP dataset, for example towards rare or common alleles, towards RADtags with more or less information density (i.e. choose SNPs on radtags with lots of nearby SNPs out of LD for microhaplotyping), etc. We decided to just take a random sample from the set of variants that best approximates the true SFS. The basic rationale for this decision is that a fully unbiased set can be used to compare results from radseq or wgs studies and filtered as needed to match other studies (e.g maf > 5%). This forgoes greater utility for some analyses (e.g more common SNPs may be better for structure), but also permits others (e.g. demographic modeling using the SFS - dadi/moments). This variant set used only minor allele count of 3 to avoid any singletons, but no MAF filtering. This may be slightly skewed because it relies on called genotypes, rather than a closer approximation of the SFS from genotype likelihood based methods that are less prone to undercalling heterozygotes (e.g. angsd realSFS) /dfs/Omalley_Lab/dayan/albacore/feature_selection/stacks/vaux_run_multisnp and the log for generating the dataset is contained above (section "vaux snps check") 
+
+```{r, eval = FALSE}
+# get random set of 305 rows from the 166,248 SNPs in the multisnp vcf
+lines <- sample(c(1:166248), 305)
+rows <- lines+15 # skip the header lines
+write_lines(rows, "random_snp_rows.txt")
+
+```
+
+```{bash, eval = FALSE}
+#copied the random snp rows files above to dir on server (snp_rows.txt)
+
+#from the vaux_multisnp directory
+head -15 populations.snps.vcf > random_305_snps.vcf
+awk 'NR==FNR{linesToPrint[$0];next}
+     FNR in linesToPrint' snp_rows.txt populations.snps.vcf >> random_305_snps.vcf
+
+#get depth data while here
+vcftools --vcf random_305_snps.vcf --out random_305.meanldepth --site-mean-depth
+```
+
+let's do some checks here before commiting to these SNPs
+
+__depth distribution__
+
+```{r, message=FALSE, warning=FALSE}
+neutral_depths <- read_tsv("input_data/random_305.meanldepth.ldepth.mean")
+total_depths <- read_tsv("input_data/multisnp.out.ldepth.mean")
+
+neutral_depths$snpID <- paste(neutral_depths$CHROM, neutral_depths$POS, sep = "_")
+total_depths$snpID <- paste(total_depths$CHROM, total_depths$POS, sep = "_")
+
+spatial_target_snps <- snps_within_spatial_radtags_0.01 %>%
+  filter(target_snp == TRUE) %>%
+  mutate(snpID = paste(contig, pos, sep = "_")) %>%
+  select(snpID)
+
+total_depths <- total_depths %>%
+  mutate(panel_subset = case_when(snpID %in% neutral_depths$snpID ~ "neutral",
+                                  snpID %in% spatial_target_snps$snpID ~ "spatial",
+                                  snpID %in% n_s_84_info$snpID ~ "fst",
+                                  TRUE ~ "not_panel"))
+
+ggplot(total_depths)+geom_density(aes(MEAN_DEPTH, fill = panel_subset), alpha = 0.5)+theme_classic()+scale_fill_viridis_d()
+
+
+ggplot(total_depths)+geom_density(aes(MEAN_DEPTH, fill = panel_subset), alpha = 0.5)+theme_classic()+scale_fill_viridis_d()+xlim(0,175)
+
+```
+
+Looks good to me. The FST and spatial dataset (both derived from the fully filtered datasets from the ms) have slightly higher depths, but the neutral dataset here is a pretty good match to the overall depth distribution. (note here, the non-panel subset is not the "overall" but considering it has 166k loci, I don't think the ~200 in the fst and spatial sets would have a strong effect on the density plot)
+
+__SFS__  
+
+Next is looking at the SFS. We will roughly approximate the SFS by examining MAF. Here the expectation is that FST and spatial patterns will be strongly different in MAF, but the neutral and non-panel markers should be a very good match.
+
+We'll use the AF estimated directly by stacks (8th column in the VCF file) to estimate SFS across the different panel subsets and the full dataset. These will be skewed, particularly at low MAF and low depth loci because of miscalled genotypes (i.e. het dropout).
+
+```{r, message=FALSE, warning=FALSE}
+all_snps <- read_tsv("input_data/multisnp_info.txt")
+all_snps <- all_snps %>%
+  mutate(snpID = paste(contig, pos, sep = "_")) %>%
+  mutate(panel_subset = case_when(snpID %in% neutral_depths$snpID ~ "neutral",
+                                  snpID %in% spatial_target_snps$snpID ~ "spatial",
+                                  snpID %in% n_s_84_info$snpID ~ "fst",
+                                  TRUE ~ "not_panel"))
+
+ggplot()+geom_density(data = all_snps, aes(x = maf, fill = panel_subset), alpha = 0.5)+theme_bw()+scale_fill_viridis_d()
+```
+
+other than spatial and fst SNPs enriched for common alleles, it's hard to see the details here, lets try again, without those two groups
+
+```{r, message=FALSE, warning=FALSE}
+
+ggplot()+geom_density(data = filter(all_snps, panel_subset == "neutral" | panel_subset == "not_panel"), aes(x = maf, fill = panel_subset), alpha = 0.5)+theme_bw()+scale_fill_viridis_d()
+```
+
+There are a few "outliers" in our neutral draw (i.e. neutral snps drawn from the tail of the full dataset distribution). Let's see how far off this is from expectations with a p-value
+
+```{r}
+summary(aov(maf ~ panel_subset, filter(all_snps, panel_subset == "neutral" | panel_subset == "not_panel")))
+```
+
+Okay, we'd expect a difference in mean maf at least this large in 64% of similar draws of 305 SNPs. But we're less interested in the mean and more interested in the number of "extreme" samples so let's use a Kolmogorov-Smirnov test
+
+```{r}
+ks.test(pull(filter(all_snps, panel_subset == "neutral"), maf), pull(filter(all_snps, panel_subset == "not_panel"), maf))
+```
+Differences in distribution (two-sided) this strong in 26% of samples. I can live with this. 
+
+__excludes any outliers__  
+
+When I pulled the random SNPs from the full panel I didn't exclude any of the fst or spatial outliers before sampling, let's quickly check that they aren't in there.
+
+```{r}
+sum(neutral_depths$snpID %in% spatial_target_snps$snpID)
+sum(neutral_depths$snpID %in% n_s_84_info$snpID)
+neutral_depths[(neutral_depths$snpID %in% spatial_target_snps$snpID),]
+```
+
+welp, against astonishing odds, one managed to sneak in there... Let's just pull it out, rather than taking another draw. here I went back and deleted the row from the input files on the local side (warning still there on the server), and the R objects. SNP is BADN01028862.1_4936. Note, that after I delete these, when the scripts above are run it will not show up.
+
+## Fasta input
+
+Let's grab the consensus sequences and the SNPs with maf > 0.01 on the same contigs
+
+
+```{bash, eval = FALSE}
+# in an interactive shell grep'd the matching consensus sequence from the ori-pac-1 catalog
+# bash
+
+RADTAGS=">1053
+>5705
+>8172
+>9839
+>11768
+>14087
+>15185
+>18038
+>18248
+>22458
+>29191
+>30855
+>31167
+>31229
+>31696
+>34278
+>44356
+>53443
+>61296
+>62353
+>67417
+>70498
+>75977
+>75977
+>78354
+>85116
+>85403
+>86786
+>88960
+>90807
+>102704
+>111730
+>114742
+>116796
+>124198
+>129040
+>141556
+>148734
+>150869
+>154420
+>155648
+>155926
+>163061
+>165740
+>171963
+>172540
+>177764
+>179604
+>181183
+>188248
+>188643
+>190858
+>192325
+>198272
+>205171
+>205236
+>205459
+>206565
+>210942
+>213892
+>216080
+>218058
+>220736
+>227920
+>233907
+>246363
+>246914
+>251644
+>252467
+>254481
+>254481
+>257420
+>258263
+>265682
+>265975
+>272722
+>278651
+>284933
+>285837
+>288802
+>291848
+>291965
+>295230
+>295230
+>299011
+>299321
+>303806
+>303990
+>311543
+>315298
+>316756
+>325039
+>325215
+>340289
+>343897
+>351674
+>362999
+>363459
+>364694
+>366695
+>370556
+>370662
+>376412
+>376518
+>383274
+>383531
+>383562
+>385257
+>387222
+>387903
+>394829
+>396459
+>397489
+>400028
+>401708
+>410523
+>417618
+>419037
+>420162
+>421047
+>441577
+>442694
+>445441
+>446960
+>451593
+>455843
+>456146
+>459454
+>462536
+>468203
+>470992
+>471672
+>473396
+>477688
+>477861
+>479942
+>483388
+>489802
+>490725
+>490872
+>492018
+>493075
+>493418
+>493619
+>494212
+>494272
+>496487
+>497541
+>500516
+>502044
+>502410
+>503253
+>505139
+>510142
+>513506
+>517615
+>522026
+>525373
+>529228
+>530421
+>531676
+>536963
+>537752
+>538319
+>538842
+>540596
+>545331
+>545963
+>546877
+>551700
+>553841
+>554036
+>564095
+>567612
+>570371
+>571688
+>572139
+>573232
+>579760
+>584901
+>586089
+>586955
+>587501
+>590819
+>594428
+>594565
+>595088
+>596876
+>598558
+>599296
+>599859
+>603493
+>604929
+>606143
+>615481
+>620924
+>621362
+>625245
+>626313
+>627538
+>629164
+>632104
+>635042
+>637402
+>641199
+>644916
+>646048
+>650907
+>660113
+>661076
+>662997
+>670922
+>671230
+>676441
+>680352
+>681820
+>682424
+>685832
+>692472
+>694640
+>702017
+>709591
+>713572
+>715522
+>717317
+>724660
+>726393
+>726579
+>726793
+>727651
+>729056
+>732911
+>738363
+>740343
+>743459
+>748479
+>751976
+>755455
+>758235
+>758983
+>764195
+>767145
+>768803
+>768987
+>769078
+>769758
+>773390
+>781292
+>783849
+>784009
+>789543
+>795683
+>796361
+>796362
+>796362
+>798522
+>801141
+>803279
+>804960
+>805478
+>805573
+>808595
+>809467
+>810374
+>811283
+>813687
+>823074
+>823317
+>823910
+>825272
+>833152
+>842329
+>842677
+>844956
+>845238
+>848354
+>856662
+>867481
+>867623
+>867755
+>877412
+>878390
+>883146
+>887102
+>894000
+>895978
+>905332
+>905528
+>911294
+>917478
+>922843
+>923288
+>925142
+>927978
+>933921
+>940988
+>941638
+>942624
+>945762
+>959061
+>959378
+>982039
+>984553
+>989037
+"
+
+for i in $RADTAGS
+do 
+zcat catalog.fa.gz | grep -A1 -m 1 $i
+done
+
+#then wrote these out to a text editor and edited so it had one column for each data field
+```
+
+```{r, message=FALSE, warning=FALSE}
+neutral_snps <- read_tsv("input_data/vaux_data/neutral_snps.txt")
+
+neutral_consensus <- read_tsv("input_data/vaux_data/neutral_consensus.txt")
+neutral_consensus$catalog_id <- as.numeric(neutral_consensus$catalog_id)
+
+neutral_consensus <- neutral_consensus %>%
+  left_join(select(neutral_snps, catalog_id, catalog_snp_pos), by = c("catalog_id" = "catalog_id"))
+```
+
+make the snp data for masking
+
+```{bash, eval = FALSE}
+# ran this on an interactive shell with bash, used the multisnp vcf file (vcf file from populations with mac 3 filtering, see above)
+# here we print out all the SNPs on the radtags of our target SNPs
+# run this on an interactive shell on the server (with bash)
+RADTAGS="1053:
+5705:
+8172:
+9839:
+11768:
+14087:
+15185:
+18038:
+18248:
+22458:
+29191:
+30855:
+31167:
+31229:
+31696:
+34278:
+44356:
+53443:
+61296:
+62353:
+67417:
+70498:
+75977:
+75977:
+78354:
+85116:
+85403:
+86786:
+88960:
+90807:
+102704:
+111730:
+114742:
+116796:
+124198:
+129040:
+141556:
+148734:
+150869:
+154420:
+155648:
+155926:
+163061:
+165740:
+171963:
+172540:
+177764:
+179604:
+181183:
+188248:
+188643:
+190858:
+192325:
+198272:
+205171:
+205236:
+205459:
+206565:
+210942:
+213892:
+216080:
+218058:
+220736:
+227920:
+233907:
+246363:
+246914:
+251644:
+252467:
+254481:
+254481:
+257420:
+258263:
+265682:
+265975:
+272722:
+278651:
+284933:
+285837:
+288802:
+291848:
+291965:
+295230:
+295230:
+299011:
+299321:
+303806:
+303990:
+311543:
+315298:
+316756:
+325039:
+325215:
+340289:
+343897:
+351674:
+362999:
+363459:
+364694:
+366695:
+370556:
+370662:
+376412:
+376518:
+383274:
+383531:
+383562:
+385257:
+387222:
+387903:
+394829:
+396459:
+397489:
+400028:
+401708:
+410523:
+417618:
+419037:
+420162:
+421047:
+441577:
+442694:
+445441:
+446960:
+451593:
+455843:
+456146:
+459454:
+462536:
+468203:
+470992:
+471672:
+473396:
+477688:
+477861:
+479942:
+483388:
+489802:
+490725:
+490872:
+492018:
+493075:
+493418:
+493619:
+494212:
+494272:
+496487:
+497541:
+500516:
+502044:
+502410:
+503253:
+505139:
+510142:
+513506:
+517615:
+522026:
+525373:
+529228:
+530421:
+531676:
+536963:
+537752:
+538319:
+538842:
+540596:
+545331:
+545963:
+546877:
+551700:
+553841:
+554036:
+564095:
+567612:
+570371:
+571688:
+572139:
+573232:
+579760:
+584901:
+586089:
+586955:
+587501:
+590819:
+594428:
+594565:
+595088:
+596876:
+598558:
+599296:
+599859:
+603493:
+604929:
+606143:
+615481:
+620924:
+621362:
+625245:
+626313:
+627538:
+629164:
+632104:
+635042:
+637402:
+641199:
+644916:
+646048:
+650907:
+660113:
+661076:
+662997:
+670922:
+671230:
+676441:
+680352:
+681820:
+682424:
+685832:
+692472:
+694640:
+702017:
+709591:
+713572:
+715522:
+717317:
+724660:
+726393:
+726579:
+726793:
+727651:
+729056:
+732911:
+738363:
+740343:
+743459:
+748479:
+751976:
+755455:
+758235:
+758983:
+764195:
+767145:
+768803:
+768987:
+769078:
+769758:
+773390:
+781292:
+783849:
+784009:
+789543:
+795683:
+796361:
+796362:
+796362:
+798522:
+801141:
+803279:
+804960:
+805478:
+805573:
+808595:
+809467:
+810374:
+811283:
+813687:
+823074:
+823317:
+823910:
+825272:
+833152:
+842329:
+842677:
+844956:
+845238:
+848354:
+856662:
+867481:
+867623:
+867755:
+877412:
+878390:
+883146:
+887102:
+894000:
+895978:
+905332:
+905528:
+911294:
+917478:
+922843:
+923288:
+925142:
+927978:
+933921:
+940988:
+941638:
+942624:
+945762:
+959061:
+959378:
+982039:
+984553:
+989037:
+"
+
+for i in $RADTAGS
+do 
+cut -f 1-8 populations.snps.vcf | grep  $i
+done
+
+```
+
+```{r, message=FALSE, warning=FALSE}
+snps_within_neutral_radtags <- read_tsv("input_data/vaux_data/snps_within_neutral_radtags.txt")
+
+#note things are done a little bit different here because some neutral target snps are less than 0.01 maf,
+
+snps_within_neutral_radtags$snpID <- paste(snps_within_neutral_radtags$contig, snps_within_neutral_radtags$pos, sep = "_")
+snps_within_neutral_radtags$snpID_catalog <- paste(snps_within_neutral_radtags$catalog_id, snps_within_neutral_radtags$catalog_snp_pos, sep = "_")
+
+neutral_snps$snp_id_catalog <- paste(neutral_snps$catalog_id, neutral_snps$catalog_snp_pos, sep = "_")
+
+snps_within_neutral_radtags$target_snp <- snps_within_neutral_radtags$snpID_catalog %in% neutral_snps$snp_id_catalog
+
+
+#now filter out the <0.01 maf snps IF NOT a target
+
+snps_within_neutral_radtags_0.01 <- filter(snps_within_neutral_radtags, (maf >= 0.01 & target_snp == FALSE) | target_snp == TRUE)
+
+# theres also a few randomly selected SNPs that fall on the same catalog, let's get rid of these as they will cause issues with primer design and the gtseq pipeline
+
+# theres also some duplicate snps across the 2 axes, let's deduplicate the snp_data
+neutral_snps <- neutral_snps %>%
+  distinct(catalog_id, .keep_all = TRUE)
+#deduplicate the consensus sequences
+neutral_consensus <- neutral_consensus %>%
+  distinct(catalog_id, .keep_all = TRUE)
+
+
+#now do the masking
+
+
+#set to iupac codes
+for (i in c(1:nrow(neutral_consensus))){ #loop through each row of the consensus_sequence dataframe df
+  for (j in c(1:nrow(snps_within_neutral_radtags_0.01))){
+    if(neutral_consensus[i,1] == snps_within_neutral_radtags_0.01[j,3]){
+       if(snps_within_neutral_radtags_0.01[j,5] == "+"){
+      if((snps_within_neutral_radtags_0.01[j,6]== "C" && snps_within_neutral_radtags_0.01[j,7]== "T" )| (snps_within_neutral_radtags_0.01[j,6]== "T" && snps_within_neutral_radtags_0.01[j,7]== "C" )){str_sub(neutral_consensus[i,8], snps_within_neutral_radtags_0.01[j,4],snps_within_neutral_radtags_0.01[j,4]) <- "Y" }
+  else if((snps_within_neutral_radtags_0.01[j,6]== "A" && snps_within_neutral_radtags_0.01[j,7]== "G" )| (snps_within_neutral_radtags_0.01[j,6]== "G" && snps_within_neutral_radtags_0.01[j,7]== "A" )){str_sub(neutral_consensus[i,8], snps_within_neutral_radtags_0.01[j,4],snps_within_neutral_radtags_0.01[j,4]) <- "R"}
+  else if((snps_within_neutral_radtags_0.01[j,6]== "A" && snps_within_neutral_radtags_0.01[j,7]== "T" )| (snps_within_neutral_radtags_0.01[j,6]== "T" && snps_within_neutral_radtags_0.01[j,7]== "A" )){str_sub(neutral_consensus[i,8], snps_within_neutral_radtags_0.01[j,4],snps_within_neutral_radtags_0.01[j,4]) <- "W"}
+  else if((snps_within_neutral_radtags_0.01[j,6]== "G" && snps_within_neutral_radtags_0.01[j,7]== "C" )| (snps_within_neutral_radtags_0.01[j,6]== "C" && snps_within_neutral_radtags_0.01[j,7]== "G" )){str_sub(neutral_consensus[i,8], snps_within_neutral_radtags_0.01[j,4],snps_within_neutral_radtags_0.01[j,4]) <- "S"}
+  else if((snps_within_neutral_radtags_0.01[j,6]== "T" && snps_within_neutral_radtags_0.01[j,7]== "G" )| (snps_within_neutral_radtags_0.01[j,6]== "G" && snps_within_neutral_radtags_0.01[j,7]== "T" )){str_sub(neutral_consensus[i,8], snps_within_neutral_radtags_0.01[j,4],snps_within_neutral_radtags_0.01[j,4]) <- "K"}
+  else if((snps_within_neutral_radtags_0.01[j,6]== "C" && snps_within_neutral_radtags_0.01[j,7]== "A" )| (snps_within_neutral_radtags_0.01[j,6]== "A" && snps_within_neutral_radtags_0.01[j,7]== "C" )){str_sub(neutral_consensus[i,8], snps_within_neutral_radtags_0.01[j,4],snps_within_neutral_radtags_0.01[j,4]) <- "M"}}
+      else if(snps_within_neutral_radtags_0.01[j,5] == "-"){
+         if((snps_within_neutral_radtags_0.01[j,6]== "C" && snps_within_neutral_radtags_0.01[j,7]== "T" )| (snps_within_neutral_radtags_0.01[j,6]== "T" && snps_within_neutral_radtags_0.01[j,7]== "C" )){str_sub(neutral_consensus[i,8], snps_within_neutral_radtags_0.01[j,4],snps_within_neutral_radtags_0.01[j,4]) <- "R" }
+  else if((snps_within_neutral_radtags_0.01[j,6]== "A" && snps_within_neutral_radtags_0.01[j,7]== "G" )| (snps_within_neutral_radtags_0.01[j,6]== "G" && snps_within_neutral_radtags_0.01[j,7]== "A" )){str_sub(neutral_consensus[i,8], snps_within_neutral_radtags_0.01[j,4],snps_within_neutral_radtags_0.01[j,4]) <- "Y"}
+  else if((snps_within_neutral_radtags_0.01[j,6]== "A" && snps_within_neutral_radtags_0.01[j,7]== "T" )| (snps_within_neutral_radtags_0.01[j,6]== "T" && snps_within_neutral_radtags_0.01[j,7]== "A" )){str_sub(neutral_consensus[i,8], snps_within_neutral_radtags_0.01[j,4],snps_within_neutral_radtags_0.01[j,4]) <- "W"}
+  else if((snps_within_neutral_radtags_0.01[j,6]== "G" && snps_within_neutral_radtags_0.01[j,7]== "C" )| (snps_within_neutral_radtags_0.01[j,6]== "C" && snps_within_neutral_radtags_0.01[j,7]== "G" )){str_sub(neutral_consensus[i,8], snps_within_neutral_radtags_0.01[j,4],snps_within_neutral_radtags_0.01[j,4]) <- "S"}
+  else if((snps_within_neutral_radtags_0.01[j,6]== "T" && snps_within_neutral_radtags_0.01[j,7]== "G" )| (snps_within_neutral_radtags_0.01[j,6]== "G" && snps_within_neutral_radtags_0.01[j,7]== "T" )){str_sub(neutral_consensus[i,8], snps_within_neutral_radtags_0.01[j,4],snps_within_neutral_radtags_0.01[j,4]) <- "M"}
+  else if((snps_within_neutral_radtags_0.01[j,6]== "C" && snps_within_neutral_radtags_0.01[j,7]== "A" )| (snps_within_neutral_radtags_0.01[j,6]== "A" && snps_within_neutral_radtags_0.01[j,7]== "C" )){str_sub(neutral_consensus[i,8], snps_within_neutral_radtags_0.01[j,4],snps_within_neutral_radtags_0.01[j,4]) <- "K"}
+      }
+    }}}
+
+
+# add field for fasta sequence if we only keep one target SNP and store the rest as ambiguity codes
+neutral_consensus$single_target_fasta <- neutral_consensus$fasta
+
+
+# change iupac code to bracket at target SNP
+for (i in c(1:nrow(neutral_consensus))){ #loop through each row of the consensus_sequence dataframe df
+  for (j in c(1:nrow(snps_within_neutral_radtags_0.01))){
+    if(neutral_consensus[i,1] == snps_within_neutral_radtags_0.01[j,3] && snps_within_neutral_radtags_0.01[j,14] == TRUE){ if(str_sub(neutral_consensus[i,9],snps_within_neutral_radtags_0.01[j,4],snps_within_neutral_radtags_0.01[j,4]) == "Y"){(str_sub(neutral_consensus[i,9], snps_within_neutral_radtags_0.01[j,4],snps_within_neutral_radtags_0.01[j,4]) <- "[C/T]" )}
+    else if(str_sub(neutral_consensus[i,9],snps_within_neutral_radtags_0.01[j,4],snps_within_neutral_radtags_0.01[j,4]) == "R"){(str_sub(neutral_consensus[i,9], snps_within_neutral_radtags_0.01[j,4],snps_within_neutral_radtags_0.01[j,4]) <- "[A/G]" )}
+    else if(str_sub(neutral_consensus[i,9],snps_within_neutral_radtags_0.01[j,4],snps_within_neutral_radtags_0.01[j,4]) == "S"){(str_sub(neutral_consensus[i,9], snps_within_neutral_radtags_0.01[j,4],snps_within_neutral_radtags_0.01[j,4]) <- "[G/C]" )}
+    else if(str_sub(neutral_consensus[i,9],snps_within_neutral_radtags_0.01[j,4],snps_within_neutral_radtags_0.01[j,4]) == "W"){(str_sub(neutral_consensus[i,9], snps_within_neutral_radtags_0.01[j,4],snps_within_neutral_radtags_0.01[j,4]) <- "[A/T]" )}
+    else if(str_sub(neutral_consensus[i,9],snps_within_neutral_radtags_0.01[j,4],snps_within_neutral_radtags_0.01[j,4]) == "K"){(str_sub(neutral_consensus[i,9], snps_within_neutral_radtags_0.01[j,4],snps_within_neutral_radtags_0.01[j,4]) <- "[G/T]" )}
+    else if(str_sub(neutral_consensus[i,9],snps_within_neutral_radtags_0.01[j,4],snps_within_neutral_radtags_0.01[j,4]) == "M"){(str_sub(neutral_consensus[i,9], snps_within_neutral_radtags_0.01[j,4],snps_within_neutral_radtags_0.01[j,4]) <- "[A/C]" )}
+    }}} 
+
+
+```
+
+now write all this to a file
+```{r, eval = FALSE}
+#he stacks catalog is 23907, the stacks locus start site 12194 + 127 -1 = 12320, and the #contig is BADN01001835.1 (for - strand)
+
+neutral_consensus <- neutral_consensus %>%
+  left_join(select(neutral_snps, catalog_id, pos))
+
+neutral_consensus$snp_id <- paste(neutral_consensus$contig, neutral_consensus$pos, sep = "_") 
+write_tsv(select(neutral_consensus, snp_id, single_target_fasta), file = "panel_info/neutral_snp.fasta") 
+#edited in texteditor to fasta format with snpID_spatial (format: contig_pos) as sequence name
+```
+
+# QC check
+
+Let's quickly make sure all of this is correct. We will grab a few lines from each of the three input FASTAs and then check them against the actual consensus and sample sequences to make sure the correct SNPs have been bracketed and or masked.
+
+__Vaux (N-S) SNPs__
+
+```{bash, eval = FALSE}
+#note copy this code chunk into a text editor without text wrapping for correct checks
+
+# here we pulled a line from the fasta file, then pulled the corresponding line from the consensus sequence (according to catalog ID), then we used the samples.fa file to pull the individual calls at these stacks, sorted the most common according to count (sort | uniq -c) and lined them all up in a text editor
+
+########################################################################################
+>BADN01075352.1_4764_fst  stack:ÿ730808  strand +
+
+                TGCAGAACCTCTTCCCAGGA[C/T]AGCAGYCCTGTAAAWRACYARACATTGTCAATAAAGTCTTCARARGGMRTCTGGGTGAACTMCTCAGTATCATGAAGCTGGGTGTCTTYRAGAAGATGAAGGCTAGAGTACACRGTAATRAAGGACAGATGAGAGGATTGAAGCATGC
+consensus       TGCAGAACCTCTTCCCAGGA  C  AGCAGCCCTGTAAATAACCAGACATTGTCAATAAAGTCTTCAAAAGGAGTCTGGGTGAACTCCTCAGTATCATGAAGCTGGGTGTCTTCGAGAAGATGAAGGCTAGAGTACACAGTAATGAAGGACAGATGAGAGGATTGAAGCATGC
+maj             TGCAGAACCTCTTCCCAGGA  C  AGCAGCCCTGTAAATAACCAGACATTGTCAATAAAGTCTTCAAAAGGAGTCTGGGTGAACTCCTCAGTATCATGAAGCTGGGTGTCTTCGAGAAGATGAAGGCTAGAGTACACAGTAATGAAGGACAGATGAGAGGATTGAAGCATGC
+min             TGCAGAACCTCTTCCCAGGA  T  AGCAGCCCTGTAAATAACCAGACATTGTCAATAAAGTCTTCAAAAGGAGTCTGGGTGAACTCCTCAGTATCATGAAGCTGGGTGTCTTCGAGAAGATGAAGGCTAGAGTACACAGTAATGAAGGACAGATGAGAGGATTGAAGCATGC
+
+multi_snp
+BADN01075352.1	4784	730808:21:+	C	T	.	PASS	NS=302;AF=0.079
+BADN01075352.1	4790	730808:27:+	C	T	.	PASS	NS=306;AF=0.025
+BADN01075352.1	4799	730808:36:+	T	A	.	PASS	NS=298;AF=0.195
+BADN01075352.1	4800	730808:37:+	A	G	.	PASS	NS=299;AF=0.194
+BADN01075352.1	4803	730808:40:+	C	T	.	PASS	NS=308;AF=0.011
+BADN01075352.1	4805	730808:42:+	G	A	.	PASS	NS=301;AF=0.158
+BADN01075352.1	4827	730808:64:+	A	G	.	PASS	NS=303;AF=0.107
+BADN01075352.1	4829	730808:66:+	A	G	.	PASS	NS=307;AF=0.021
+BADN01075352.1	4832	730808:69:+	A	C	.	PASS	NS=307;AF=0.021
+BADN01075352.1	4833	730808:70:+	G	A	.	PASS	NS=305;AF=0.105
+BADN01075352.1	4846	730808:83:+	C	A	.	PASS	NS=305;AF=0.103
+BADN01075352.1	4873	730808:110:+	C	T	.	PASS	NS=304;AF=0.125
+BADN01075352.1	4874	730808:111:+	G	A	.	PASS	NS=307;AF=0.021
+BADN01075352.1	4886	730808:123:+	G	A	.	PASS	NS=307;AF=0.005
+BADN01075352.1	4898	730808:135:+	A	G	.	PASS	NS=305;AF=0.048
+BADN01075352.1	4904	730808:141:+	G	A	.	PASS	NS=303;AF=0.051
+
+counting row
+TGCAGAACCTCTTCCCAGGACAGCAGYCCTGTAAAWRACYARACATTGTCAATAAAGTCTTCARARGGMRTCTGGGTGAACTMCTCAGTATCATGAAGCTGGGTGTCTTYRAGAAGATGAAGGCTAGAGTACACRGTAATRAAGGACAGATGAGAGGATTGAAGCATGC
+
+looks good, now lets do a negative strand
+
+########################################################################################
+866549 >BADN01096568.1_1130_fst strand -
+
+
+fasta           TGCAGGATACCTTCCTCCTCCACCTCCTCCTCCTCCAAATCCACCACCTAC[A/G]CAGCTGCCCAGGGAGCYGCCGCAGTTCTGCCCTYCTCAAACTCTKYTGCCGCCWGTTCCTCTACAGGTTCCTCATCCCATGCCGCAAGCAAACTGGATCAGCATGCC
+consensus  TGCAGGATACCTTCCTCCTCCACCTCCTCCTCCTCCAAATCCACCACCTAC  A  CAGCTGCCCAGGGAGCCGCCGCAGTTCTGCCCTCCTCAAACTCTGCTGCCGCCAGTTCCTCTACAGGTTCCTCATCCCATGCCGCAAGCAAACTGGATCAGCATGCC
+maj        TGCAGGATACCTTCCTCCTCCACCTCCTCCTCCTCCAAATCCACCACCTAC  A  CAGCTGCCCAGGGAGCCGCCGCAGTTCTGCCCTCCTCAAACTCTGCTGCCGCCAGTTCCTCTACAGGTTCCTCATCCCATGCCGCAAGCAAACTGGATCAGCATGCC  
+min        TGCAGGATACCTTCCTCCTCCACCTCCTCCTCCTCCAAATCCACCACCTAC  G  CAGCTGCCCAGGGAGCCGCCGCAGTTCTGCCCTCCTCAAACTCTGCTGCCGCCAGTTCCTCTACAGGTTCCTCATCCCATGCCGCAAGCAAACTGGATCAGCATGCC
+
+
+BADN01096568.1	1079	866549:52:-	T	C	.	PASS	NS=302;AF=0.124
+BADN01096568.1	1062	866549:69:-	G	A	.	PASS	NS=306;AF=0.010
+BADN01096568.1	1045	866549:86:-	G	A	.	PASS	NS=303;AF=0.114
+BADN01096568.1	1034	866549:97:-	C	A	.	PASS	NS=308;AF=0.015
+BADN01096568.1	1033	866549:98:-	G	A	.	PASS	NS=305;AF=0.026
+BADN01096568.1	1025	866549:106:-	T	A	.	PASS	NS=305;AF=0.067
+BADN01096568.1	995	866549:136:-	C	T	.	PASS	NS=308;AF=0.008
+
+TGCAGGATACCTTCCTCCTCCACCTCCTCCTCCTCCAAATCCACCACCTACXCAGCTGCCCAGGGAGCYGCCGCAGTTCTGCCCTYCTCAAACTCTKYTGCCGCCWGTTCCTCTACAGGTTCCTCATCCCATGCCGCAAGCAAACTGGATCAGCATGCC
+
+########################################################################################
+#################################  spatial   #####################################
+
+##########################
+
+>BADN01015498.1_6699_fst   ÿ181677  strand: -
+
+FASTA     TGCAGCCACTACATCCTTCCATAGTCCCAGTCAAAGGATTGGAYGGGCTTAATTGGCATCAGAAGTGCCACAATTATGYTCATGATCACTATTGTATGGGTAAAAGAGGAAGGTCAGTAAGAGCATGTWGACAGGTTTCTGATTATGGTGTGAATGCTGATAG[A/C]TATTGTTCTTCTGTGATWATCAATTTGTGCTGTGTAAATGTCATGTATGTGATGACTGTAAGCATGC
+consensus TGCAGCCACTACATCCTTCCATAGTCCCAGTCAAAGGATTGGATGGGCTTAATTGGCATCAGAAGTGCCACAATTATGTTCATGATCACTATTGTATGGGTAAAAGAGGAAGGTCAGTAAGAGCATGTAGACAGGTTTCTGATTATGGTGTGAATGCTGATAG  A  TATTGTTCTTCTGTGATTATCAATTTGTGCTGTGTAAATGTCATGTATGTGATGACTGTAAGCATGC
+maj       TGCAGCCACTACATCCTTCCATAGTCCCAGTCAAAGGATTGGATGGGCTTAATTGGCATCAGAAGTGCCACAATTATGTTCATGATCACTATTGTATGGGTAAAAGAGGAAGGTCAGTAAGAGCATGTAGACAGGTTTCTGATTATGGTGTGAATGCTGATAG  A  TATTGTTCTTCTGTGATTATCAATTTGTGCTGTGTAAATGTCATGTATGTGATGACTGTAAGCATGC
+min       TGCAGCCACTACATCCTTCCATAGTCCCAGTCAAAGGATTGGATGGGCTTAATTGGCATCAGAAGTGCCACAATTATGTTCATGATCACTATTGTATGGGTAAAAGAGGAAGGTCAGTAAGAGCATGTAGACAGGTTTCTGATTATGGTGTGAATGCTGATAG  C  TATTGTTCTTCTGTGATTATCAATTTGTGCTGTGTAAATGTCATGTATGTGATGACTGTAAGCATGC
+
+
+TGCAGCCACTACATCCTTCCATAGTCCCAGTCAAAGGATTGGAYGGGCTTAATTGGCATCAGAAGTGCCACAATTATGYTCATGATCACTATTGTATGGGTAAAAGAGGAAGGTCAGTAAGAGCATGTWGACAGGTTTCTGATTATGGTGTGAATGCTGATAGXTATTGTTCTTCTGTGATWATCAATTTGTGCTGTGTAAATGTCATGTATGTGATGACTGTAAGCATGC
+
+BADN01015498.1	6656	181677:44:-	A	G	.	PASS	NS=308;AF=0.011
+BADN01015498.1	6635	181677:65:-	C	T	.	PASS	NS=307;AF=0.007
+BADN01015498.1	6621	181677:79:-	A	G	.	PASS	NS=308;AF=0.013
+BADN01015498.1	6608	181677:92:-	A	G	.	PASS	NS=308;AF=0.006
+BADN01015498.1	6575	181677:125:-	T	G	.	PASS	NS=308;AF=0.005
+BADN01015498.1	6571	181677:129:-	T	A	.	PASS	NS=307;AF=0.013
+BADN01015498.1	6545	181677:155:-	A	G	.	PASS	NS=307;AF=0.005
+BADN01015498.1	6536	181677:164:-	T	G	.	PASS	NS=301;AF=0.249
+BADN01015498.1	6518	181677:182:-	A	T	.	PASS	NS=300;AF=0.252
+
+###############
+ÿ138347  strand +
+
+FASTA        TGCAGCTGTTTGAATGAGGAGGTTGAGATAGTACAGATCATTGATTAAATAGAGAGTCTGTTAGTGTCGTCCCACTTGCTCTCTGT[C/T]TGTAAGACACTCACTTCTTCACCTTATCAGTTTGGTAGATTAGCTGTGAAAGTAATACCGATGCTGTGAATGCCATCAGATATATTTTAATAGGAACGGTGGCAGCTTGGAATTTACARCCAAYCTCTATACGGATGCATGCAAG
+consensus    TGCAGCTGTTTGAATGAGGAGGTTGAGATAGTACAGATCATTGATTAAATAGAGAGTCTGTTAGTGTCGTCCCACTTGCTCTCTGT  C  TGTAAGACACTCACTTCTTCACCTTATCAGTTTGGTAGATTAGCTGTGAAAGTAATACCGATGCTGTGAATGCCATCAGATATATTTTAATAGGAACGGTGGCAGCTTGGAATTTACAGCCAACCTCTATACGGATGCATGCAAG
+   445       TGCAGCTGTTTGAATGAGGAGGTTGAGATAGTACAGATCATTGATTAAATAGAGAGTCTGTTAGTGTCGTCCCACTTGCTCTCTGT  C  TGTAAGACACTCACTTCTTCACCTTATCAGTTTGGTAGATTAGCTGTGAAAGTAATACCGATGCTGTGAATGCCATCAGATATATTTTAATAGGAACGGTGGCAGCTTGGAATTTACAGCCAACCTCTATACGGATGCATGCAAG
+    157      TGCAGCTGTTTGAATGAGGAGGTTGAGATAGTACAGATCATTGATTAAATAGAGAGTCTGTTAGTGTCGTCCCACTTGCTCTCTGT  T  TGTAAGACACTCACTTCTTCACCTTATCAGTTTGGTAGATTAGCTGTGAAAGTAATACCGATGCTGTGAATGCCATCAGATATATTTTAATAGGAACGGTGGCAGCTTGGAATTTACAGCCAACCTCTATACGGATGCATGCAAG
+
+TGCAGCTGTTTGAATGAGGAGGTTGAGATAGTACAGATCATTGATTAAATAGAGAGTCTGTTAGTGTCGTCCCACTTGCTCTCTGTXTGTAAGACACTCACTTCTTCACCTTATCAGTTTGGTAGATTAGCTGTGAAAGTAATACCGATGCTGTGAATGCCATCAGATATATTTTAATAGGAACGGTGGCAGCTTGGAATTTACARCCAAYCTCTATACGGATGCATGCAAG
+
+BADN01011511.1	4422	138347:87:+	C	T	.	PASS	NS=301;AF=0.261
+BADN01011511.1	4520	138347:185:+	G	A	.	PASS	NS=307;AF=0.005
+BADN01011511.1	4541	138347:206:+	G	A	.	PASS	NS=303;AF=0.053
+BADN01011511.1	4546	138347:211:+	C	T	.	PASS	NS=301;AF=0.261
+BADN01011511.1	4551	138347:216:+	A	G	.	PASS	NS=306;AF=0.005
+
+
+
+########################################################################################
+#################################  neutral   #####################################
+
+neutral checks are a little different, target SNP doesn't have maj/minor consensus seq
+and 
+
+##########################
+>BADN01002266.1_3438_neutral  ÿ	29191   strand: +
+
+FASTA     TGCAGTTTCTGAACATGAATCCAGAATTCTCCATTTAGAAAATGACAGCACATACTGTATGCTAGCAYGGAGCTTTAACTGGTCTTGCCAAGGC[A/G]CCATGACCTCYTTAATGAACTGCATGCTTAGATTCTTAGTGTG
+    470   TGCAGTTTCTGAACATGAATCCAGAATTCTCCATTTAGAAAATGACAGCACATACTGTATGCTAGCATGGAGCTTTAACTGGTCTTGCCAAGGC  A  CCATGACCTCTTTAATGAACTGCATGCTTAGATTCTTAGTGTG
+    130   TGCAGTTTCTGAACATGAATCCAGAATTCTCCATTTAGAAAATGACAGCACATACTGTATGCTAGCATGGAGCTTTAACTGGTCTTGCCAAGGC  A  CCATGACCTCCTTAATGAACTGCATGCTTAGATTCTTAGTGTG
+     16   TGCAGTTTCTGAACATGAATCCAGAATTCTCCATTTAGAAAATGACAGCACATACTGTATGCTAGCATGGAGCTTTAACTGGTCTTGCCAAGGC  A  CCATGACCTCNTTAATGAACTGCATGCTTAGATTCTTAGTGTG
+
+TGCAGTTTCTGAACATGAATCCAGAATTCTCCATTTAGAAAATGACAGCACATACTGTATGCTAGCAYGGAGCTTTAACTGGTCTTGCCAAGGCRCCATGACCTCYTTAATGAACTGCATGCTTAGATTCTTAGTGTG
+
+BADN01002266.1	3411	29191:68:+	T	C	.	PASS	NS=303;AF=0.035
+BADN01002266.1	3427	29191:84:+	C	T	.	PASS	NS=305;AF=0.008
+BADN01002266.1	3438	29191:95:+	A	G	.	PASS	NS=304;AF=0.018
+BADN01002266.1	3449	29191:106:+	T	C	.	PASS	NS=300;AF=0.217
+
+#######################
+ÿ5705	BADN01000445.1	9358	-
+
+fasta        TGCAGTTTTGGCTGAAAGGCACCTAGCCTGCGGTGGCGATGGATGCAAATCCAAGCTTCTGATTACCGGGGGCATGAGTATTAGACACCATAYA[C/T]CAGTTCACTACATGACCTCAAACATCCAATGTCACATTTCAGCCTGACACATACATAATAAGTGATTAAYTCCGGATGATTGGAGGGAAAATGCTGATGAAAGGTCCTAATTTATTTGTRGCCATAAAAGCAACACAGGCTGTATGTGTTTGCCAACGGTAGTTTTCACAGCATG
+consensus    TGCAGTTTTGGCTGAAAGGCACCTAGCCTGCGGTGGCGATGGATGCAAATCCAAGCTTCTGATTACCGGGGGCATGAGTATTAGACACCATATA  C  CAGTTCACTACATGACCTCAAACATCCAATGTCACATTTCAGCCTGACACATACATAATAAGTGATTAATTCCGGATGATTGGAGGGAAAATGCTGATGAAAGGTCCTAATTTATTTGTAGCCATAAAAGCAACACAGGCTGTATGTGTTTGCCAACGGTAGTTTTCACAGCATG
+
+TGCAGTTTTGGCTGAAAGGCACCTAGCCTGCGGTGGCGATGGATGCAAATCCAAGCTTCTGATTACCGGGGGCATGAGTATTAGACACCATAYAYCAGTTCACTACATGACCTCAAACATCCAATGTCACATTTCAGCCTGACACATACATAATAAGTGATTAAYTCCGGATGATTGGAGGGAAAATGCTGATGAAAGGTCCTAATTTATTTGTRGCCATAAAAGCAACACAGGCTGTATGTGTTTGCCAACGGTAGTTTTCACAGCATG
+
+BADN01000445.1	9266	5705:93:-	A	G	.	PASS	NS=305;AF=0.013
+BADN01000445.1	9264	5705:95:-	G	A	.	PASS	NS=306;AF=0.025
+BADN01000445.1	9216	5705:143:-	G	A	.	PASS	NS=305;AF=0.008
+BADN01000445.1	9194	5705:165:-	A	G	.	PASS	NS=305;AF=0.010
+BADN01000445.1	9155	5705:204:-	T	G	.	PASS	NS=307;AF=0.005
+BADN01000445.1	9144	5705:215:-	T	C	.	PASS	NS=307;AF=0.024
+BADN01000445.1	9131	5705:228:-	T	C	.	PASS	NS=307;AF=0.005
+```
+
+Everything looks great!
+
+# Final FASTA Notes
+
+The final fasta file concatenates consensus sequences of radtags containing the N_S_84 snps, spatial and neutral SNPs, in that order. It contains 495 entries (84 Fst SNPs, 111 spatial snps, 300 neutral SNPs). 
+
+Only the target SNP is bracketed, all other SNPs with maf > 1% are included. Target SNP refers to different things for each of the three groups. For the fst SNPs, these are FST outliers shared between multiple outlier scans between north and south pacific populations. 
+
+Each line in the fasta file is named according contig_target-snp-position_panel-subset. 
