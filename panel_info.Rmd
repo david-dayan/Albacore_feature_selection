@@ -1,0 +1,125 @@
+---
+title: "Panel Metadata Organization"
+output:
+  html_document:
+    df_print: paged
+    code_folding: hide
+    toc: true
+    toc_float: true
+    toc_collapsed: false
+---
+
+```{r, message=FALSE, warning=FALSE}
+require(tidyverse)
+require(knitr)
+```
+
+# Summary
+
+This notebook creates and logs the panel information for the albacore gtseq panel
+
+# Panel Version
+
+albacore_panel_1.0: 317 markers, first round of primers tested
+
+# Primer Design Summary
+
+The final round of primer design (~Mar 22, 2021) produced 332 markers and is in the directory ./albacore_gtseq332.
+
+# IDT Order 1
+
+__Long Primers__
+
+The only hiccup after the final round of primer design was the presence of some long primers that can complicate the IDT ordering process. See Nate's email below
+
+>I just noticed that a few of the primers I designed for the albacore panel are longer than 60 bases.  It's only notable because IDT has a 60 base cutoff for their 25 nmole synthesis scale primers.  Normally my script doesn't make any primers this long but I've changed it a bit to skew more to higher annealing temps.  This is pushing some of the primers longer than 60 bases.  This effects 25 loci in the panel of 332. 
+
+We decided to keep only the long primers from spatial and fst markers, and toss any neutral markers with >60bp primers, to keep costs down.
+
+```{r, message=FALSE, warning=FALSE}
+# here we filter out the neutral markers with >60bp primers
+primers <- read_csv("albacore_gtseq332/albacore_gtseq332_Primers_75.csv", col_names = FALSE)
+
+colnames(primers) <- c("marker", "fwd", "rev")
+primers$f_len <- nchar(primers$fwd)
+primers$r_len <- nchar(primers$rev)
+
+primers$type <- str_replace(primers$marker, "\\w+.1_\\w+_(\\w+)", "\\1")
+
+primers2 <- primers %>%
+  filter(!(type == "neutral" & f_len >60), !(type == "neutral" & r_len >60))
+
+# double check the code
+primers[!(primers$marker %in% primers2$marker),]
+
+#write to a table
+#write_tsv(select(primers2, marker, fwd, rev), "albacore_panel_1.0/albacore_panel_1.0_primers.txt")
+
+```
+
+__Quick Check__
+Aligned a few primers against the orignal input FASTA sequences. Looks good.
+
+# Panel Metadata
+
+Here we make all the panel info files to store on the SFGL GTseq github repo.
+
+```{r, message=FALSE, warning=FALSE}
+# load info from primer design input notebook
+load("primer_design_notebook.RData")
+
+#collect some additional info (filtered out previously)
+axis1_snps <- read_tsv("panel_info/vaux_snp_rda_outliers_axis1.txt")
+axis2_snps <- read_tsv("panel_info/vaux_snp_rda_outliers_axis2.txt")
+axis1_snps$axis <- "axis1_N_S"
+axis2_snps$axis <- "axis2_withinNPAC"
+spatial_snps_full <- bind_rows(axis2_snps, axis1_snps)
+spatial_consensus$snpID <- paste(spatial_consensus$contig, spatial_consensus$pos, sep= "_")
+
+#prep input dfs for merge
+n_s_84_info$final_ID <- paste(n_s_84_info$snpID, "_fst", sep = "")
+n_s_consensus$final_ID <- paste(n_s_consensus$snpID, "_fst", sep = "")
+n_s_84_full <- n_s_84_info %>%
+  left_join(select(n_s_consensus, -one_of( "contig", "snpID", "strand", "final_ID", "filter")), by = c("stacks_catalog_number" = "stacks_catalog_number")) %>%
+  left_join(select(all_snps, -one_of(c("strand", "contig"))), by = c("snpID" = "snpID"))
+
+spatial_snps_full <- spatial_snps_full %>%
+  left_join( select(all_snps, -one_of(c("strand"))), by = c("catalog_id" = "catalog_id", "catalog_snp_pos" = "catalog_pos")) %>%
+  left_join(select(spatial_consensus, -one_of( "contig", "strand", "filter", "axis", "pos", "catalog_snp_pos", "snpID" )), by = c("catalog_id" = "catalog_id"))
+
+neutral_full <- neutral_snps %>%
+  left_join( select(all_snps, -one_of(c("strand", "pos", "maf", "maj_allele", "contig"))), by = c("catalog_id" = "catalog_id", "catalog_snp_pos" = "catalog_pos")) %>%
+  left_join(select(neutral_consensus, -one_of( "contig", "strand", "filter", "pos", "catalog_snp_pos", "snpID" )), by = c("catalog_id" = "catalog_id"))
+  
+all_full <- bind_rows(select(n_s_84_full, snpID, single_target_fasta, maf), select(spatial_snps_full, snpID, single_target_fasta, maf), select(neutral_full, snpID, single_target_fasta, maf))
+all_full <-  all_full %>%
+  drop_na() %>%
+  distinct(snpID, .keep_all = TRUE)# some overlap between axis1 spatial and fst snps means the input data is missing for some axis1 snps, but it will be there for same snp under fst, #also some duplicates because 3 SNPs are top outliers in both spatial axes
+
+
+spatial_axis1_snps <- spatial_snps_full[spatial_snps_full$axis == "axis1_N_S", 15]
+spatial_axis2_snps <- spatial_snps_full[spatial_snps_full$axis == "axis2_withinNPAC", 15]
+
+neutral_snp_names <- neutral_full$snpID
+
+#target metadata columns
+# marker name, fwd, rev, probe1, probe2, allele correction value, 201X genome chr, 201x genome pos, vaux_fst_snp, spatial_snp axis 1, spatial snp axis2, neutral snp, radtag consensus (with masked variants), target SNP MAF
+primers2$marker_simple <- str_replace(primers2$marker, "(\\w+.1_\\w+)_\\w+", "\\1")
+
+probes <- read_csv("albacore_gtseq332/albacore_gtseq332_ProbeSeqs_75.csv", col_names = c("marker", "allele1", "allele2","probe1", "probe2", "fwd_primer","a1_correction", "a2_correction"))
+
+final_panel_info <- primers2 %>%
+  select(-one_of(c("f_len", "r_len", "type"))) %>%
+  left_join(probes) %>%
+  left_join(all_full, by = c("marker_simple" = "snpID")) %>%
+  mutate(genome_2013_chr = str_replace(marker, "(\\w+.1)_\\w+_\\w+", "\\1" )) %>%
+  mutate(genome_2013_pos = str_replace(marker, "\\w+.1_(\\w+)_\\w+", "\\1" )) %>%
+  mutate(Vaux_fst_outlier = marker_simple %in% n_s_84_info$snpID) %>%
+  mutate(spatial_axis1_outlier = marker_simple %in% spatial_axis1_snps$snpID) %>%
+  mutate(spatial_axis2_outlier = marker_simple %in% spatial_axis2_snps$snpID) %>%
+  mutate(neutral_snp = marker_simple %in% neutral_snp_names)
+  
+# write_tsv(final_panel_info, "./panel_info/albacore_gtseq_panel_1.0.txt")
+#saved this as a spreadsheet with readme and wrote out to gtseq repo
+```
+

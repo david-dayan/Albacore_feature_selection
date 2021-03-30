@@ -324,7 +324,7 @@ Now the hard part, actually making the FASTA file. Goals are below:
 
 Vaux's supplemental data already has a file of the correct consensus sequences so we can skip ahead here a bit. Let's reformat this as a tibble we can do string operations on in R.
 
-```{r warning=FALSE, message=FALSE, eval = FALSE}
+```{r eval=, message=FALSE, warning=FALSE}
 #took the data in NorSou-outlier-loci.consensus.fa and split into columns in a text editor
 n_s_consensus <- read_tsv("input_data/vaux_data/84_consensus_sequence.txt")
 n_s_consensus$snpID <- paste(n_s_consensus$contig, n_s_consensus$target_snp_position, sep = "_")
@@ -1589,7 +1589,7 @@ neutral_consensus <- neutral_consensus %>%
 
 
 #now do the masking
-
+neutral_consensus$fasta <- neutral_consensus$sequence
 
 #set to iupac codes
 for (i in c(1:nrow(neutral_consensus))){ #loop through each row of the consensus_sequence dataframe df

@@ -1,0 +1,26 @@
+First Trial Panel for albacore (v1.0)			
+			
+Column Definitions:			
+	marker	"marker naming convention: chr_pos_analysis. position information is aligment according to Vaux et al manuscript (BWA against GCA_000418415.1), ""analysis"" indicates which approach used to identify the SNP for the panel, but note that some SNPs are shared between the spatial aanalysis and fst outlier analysis"	
+	fwd	forward primer sequence	
+	rev	reverse primer sequence	
+	marker_simple		
+	allele1	probe sequence file information for gtseq pipeline	
+	allele2		
+	probe1		
+	probe2		
+	fwd_primer		
+	a1_correction		
+	a2_correction		
+	single_target_fasta	"consensus sequence of radtag from Vaux et al ms used to develop gtseq primer, target SNP is in brackets, other variants with >1% maf shown as base ambiguity codes "	
+	maf	minor allele frequency of target SNP	
+	genome_2013_chr	chromosome of target SNP on 2013 bluefin genome GCA_000418415.1	
+	genome_2013_pos	position of target SNP on 2013 bluefin genome GCA_000418415.1	
+	Vaux_fst_outlier	is SNP one of the 84 fst outliers from to Vaux et al ms	
+	spatial_axis1_outlier	is SNP a outlier for strong loading onto a redundant axis that strongly separates N from S Pacifc populations. see <https://github.com/david-dayan/Albacore_feature_selection/blob/main/feature_selection_notebook.html> for details	
+	spatial_axis2_outlier	is SNP a outlier for strong loading onto a redundant axis that separates N Pacific samples from one another. see <https://github.com/david-dayan/Albacore_feature_selection/blob/main/feature_selection_notebook.html> for details	
+	neutral_snp	is SNP randomly selected from the Vaux et al radtags	
+			
+			
+Other Notes			
+	"""Neutral"" SNPs"	"Neutral SNPs attempt to capture genome wide variation and should be more suitable for estimating population genetic parameters that may be biased using other sets of SNPs: Neutral SNPs are based on the Vaux et al sequence data but used a different filtering approach. The empirical estimated site frequency spectrum indicated that the majority of the variants in among samples was substantially below the minor allele frequency cutoff used to generate the SNP dataset for the spatial and fst outlier analyses. To avoid biasing the SFS for the neutral SNPs, a new SNP dataset was called using less stringent filtering (minor allele count > 3, instead of minor allele frequency >5%). The ""neutral"" SNP dataset was then drawn from this dataset. A Kolmogorov-Smirnov test was used to check that the allele frequency sprectrum of the neutral SNP set used in this panel did not significantly differ from the allele frequency spectrum of the full SNP dataset. Details here: https://github.com/david-dayan/Albacore_feature_selection/blob/main/primer_design_input.html "	

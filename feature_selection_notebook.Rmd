@@ -97,15 +97,12 @@ HDplot<-function(vcfData){
 
 ```
 
-# to do / notes
-
-Had trouble understanding why observation of structure in North Pacific was so highly dependent on the SNP dataset used. so I ran the analysis on many separate dataset until I realized that positive results depended on there being near duplicates in PC space. it looks like Vaux used some sequencing replicates that were filtered out in the final manuscript but not in the datasets I used. To confirm that this is how I was observing structure, I ran stacks and did my own filtering, removed potential replicates and then did two more runs for the north pacific: 1 with the true dataset, a second with 30 duplicated individuals. If found no significant structure in N pacific (i.e. p-value of permutation test of full RDA model using Kaiser-guttman cutoff PCs was not significant), but adding duplicate samples led to a highly signficant test and observation of structure at whatever spatial structure I tested.
-
-when we use the deduplicated dataset on the full pacific dataset, the full rda is signficant, but the axis that captures variation among N pacific sampling sites is not significant.
 
 # Readme
 
 This is an rstudio project. If you'd like to pre-rendered figures, read a summary of analysis and view code, please open the relevant html file in a browser. 
+
+There are a lot of analyses in this notebook because I was curious about how filtering would impact the results. In the end, we used the same SNP dataset from the Vaux et al ms for consistency and ease of panel development (sections Vaux RDA and Vaux SNP RDA, below), other analyses are included in the notebook as a log, but not evaluated/rendered.
 
 # Rationale
 
@@ -115,23 +112,68 @@ Previous analyses used STRUCTURE and PCA to reveal population genetic structure 
 
 Given the large effective population size (Ne) of Albacore, we suggest caution in interpreting the PCA and STRUCTURE results as evidence of panmixia within North and South Pacific Albacore populations. Fst at sub-gyre spatial scales was substantially below the threshold at which these tools can infer genetic structure, and large Ne can result in low Fst despite substantial demographic indepedence among demes.   
 
-In this notebook, we select features for a future GTseq panel after fully investigating potential genetic structure across a diversity of spatial scales available in the sampled locations. Identification of potential fine scale genetic structure is accomplished through:  
+In this notebook, we select additional features for a future GTseq panel after  investigating potential genetic structure across a diversity of spatial scales available in the sampled locations. Identification of potential fine scale genetic structure is accomplished through:  
 
-(1) __Hierarchical Structure:__ While signficant Fst between pairwise sampling locales with the North Pacific were low and mostly non-significant, stronger patterns may be observed at increasing levels of hierarchical structure.    
+(1) __Spatially Explicit Analysis:__ We will decompose spatial structure among the sampling locations into the full range of scales to attempt to identify the smallest spatial structures that show evidence of population genetic structure in the ddRADseq data.  
 
-(2) __Spatially Explicit Analysis:__ We will decompose spatial structure among the sampling locations into the full range of scales to attempt to identify the smallest spatial structures that show evidence of population genetic structure in the ddRADseq data.  
+Additional approaches explored but not fully implemented:  
+
+(2) __Hierarchical Structure:__ While signficant Fst between pairwise sampling locales with the North Pacific were low and mostly non-significant, stronger patterns may be observed at increasing levels of hierarchical structure.   
 
 (3) __Statistical Learning:__ Subtle polygenic structure among sampling locations may reveal population structure that univariate approaches may miss. Methods like random forest and other statistical learning algorithms have demonstrated greater sensitivity to subtle population genetic structure than methods like PCA and STRUCTURE.   
 
+
 # Data
 
-## STACKS Run
+## Vaux Genetic Data
 
-There are a lot of different versions of the SNP dataset used in the Vaux manuscript. Rather than trying to intepret the log files I just started from scratch.
+Which is the correct stacks catalog? 
+
+To overcome filtering steps that require a priori knowledge of population structure, Vaux used 9 different stacks runs to conduct the analyses in the ms. As a consequence we must be extra cautious that we build the input file for  from the correct data. 
+
+Here, used the appendix from the ms (table A11) to verify which of the 9 different stacks runs is the catalog used to generate the SNP dataset used for FST outlier analysis in Vaux ms
+
+The correct stacks catalog is ori-pac-1 ( full directory location: /dfs/Omalley_Lab/vauxf/STACKS/stacks_out/albacore/ori-pac-1/catalog.fa.gz )
+
+Within each of the 9 stacks catalogs, there are many filtering steps. According to table A4, the final set used -p 2 and -r 0.95, however, three different final filtered vcf files match these parameters. 
+
+Below are the actual calls to populations used in each of these three directories:
+
+__ori-pac-1-p2-r95-a__  
+populations -t 25 -P /nfs1/FW_HMSC/OMalley_Lab/vauxf/STACKS/stacks_out/albacore/ori-pac-1 -M /nfs1/FW_HMSC/OMalley_Lab/vauxf/STACKS/population_maps/albacore/12-2P-bam1.txt -r 0.95 -p 2 --min_maf 0.05 --write_single_snp --structure --fstats --fst_correction bonferroni_win --genepop --plink --vcf --hzar --fasta_samples --fasta_loci
+
+Summary: correct stacks catalog, maf filtering, p 2 and r 0.95, no other filtering
+
+__ori-pac-1-p2-r95-a2__  
+populations -t 30 -P /nfs1/FW_HMSC/OMalley_Lab/vauxf/STACKS/stacks_out/albacore/ori-pac-1 -M /nfs1/FW_HMSC/OMalley_Lab/vauxf/STACKS/population_maps/albacore/12-2P-bam1.txt -B /nfs1/FW_HMSC/OMalley_Lab/vauxf/STACKS/blacklists/albacore/ori-pac-1-p2-r90-PSV-LD-C1.blacklist -r 0.95 -p 2 --min_maf 0.05 --write_single_snp --structure --fstats --fst_correction bonferroni_win --genepop --plink --vcf --hzar --fasta_samples --fasta_loci
+
+Summary: correct stacks catalog,  maf filtering, p 2 and r 0.95, PSV and LD filtering using the C1 blacklist (971 markers)
+
+__ori-pac-1-p2-r95-a3__   
+populations -t 30 -P /nfs1/FW_HMSC/OMalley_Lab/vauxf/STACKS/stacks_out/albacore/ori-pac-1 -M /nfs1/FW_HMSC/OMalley_Lab/vauxf/STACKS/population_maps/albacore/12-2P-bam1.txt -B /nfs1/FW_HMSC/OMalley_Lab/vauxf/STACKS/blacklists/albacore/ori-pac-1-p2-r90-PSV-LD-C2.blacklist -r 0.95 -p 2 --min_maf 0.05 --write_single_snp --structure --fstats --fst_correction bonferroni_win --genepop --plink --vcf --hzar --fasta_samples --fasta_loci
+
+Summary: correct stacks catalog,  maf filtering, p 2 and r 0.95, PSV and LD filtering using the C2 blacklist (1490 markers)
+
+__Correct Final Filtered Dataset__  
+
+Using the information in table 2 and table a4, ori-pac-1-p2-r95-a3 is a perfect match to the manuscript. The correct vcf file is at /dfs/Omalley_Lab/vauxf/STACKS/stacks_out/albacore/ori-pac-1/ori-pac-1-p2-r95-a3/ori-pac-1-p2-r95-a3.vcf and locally at ./input_data/vaux_data/ori-pac-1-p2-r95-a3.vcf
+
+This was confirmed with Felix.
+
+```{r, message=FALSE, warning = FALSE, cache = TRUE}
+vcf_vaux <- read.vcfR("input_data/vaux_data/ori-pac-1-p2-r95-a3.vcf")
+
+```
+
+
+
+## Dayan STACKS Runs
+
+There are a lot of different versions of the SNP dataset used in the Vaux manuscript. 
 
 Here I run stacks populations on the data with my own filtering. I tried to follow Felix's approach as close as possible to minimize differences with the following exceptions. 
 
--individual filtering: no infomration in main text explaining what "failed to sequence" means, took a middle of the road approach and removed individuals with poor coverage in the bam files  
+-individual filtering: not clear what "failed to sequence" in the ms means, took a middle of the road approach and removed individuals with poor coverage in the bam files  
 - MAF filtering: got rid of MAF 5% filtering (will not have desired effect given other changes I'm making)  
 - MAC filtering: because I got rid of MAF filtering, still wanted to filter singletons, set min-mac to 3 (allele present in at least 2 individuals)
 - r: kept the same as the final Vaux dataset for consistency (SNP must be present in 90% of samples)  
@@ -184,7 +226,7 @@ SGE_Batch -q harold -P 30 -f 30G -m 36G -c '/local/cluster/stacks/stacks-2.41/bi
 ```
 
 let's take a look at the coverage across sampling sites
-```{r}
+```{r, eval=FALSE}
 # selected the bamstats section out of stacks log and wrote to file
 
 bamstats <- read_tsv("input_data/bamstats.txt")
@@ -234,7 +276,7 @@ vcftools  --vcf 0.3.recode.vcf  --remove bad_inds2 --max-missing 0.9 --recode-IN
 vcftools  --vcf 0.4.recode.vcf --site-mean-depth
 ```
 
-```{r, message=FALSE, warning=FALSE}
+```{r message=FALSE, warning=FALSE, eval = FALSE}
 depths <- read_tsv("input_data/out.ldepth_3.mean")
 ggplot(data=depths)+geom_histogram(aes(x = MEAN_DEPTH))
 
@@ -303,7 +345,7 @@ vcftools --vcf 0.5_run3.recode.vcf --exclude-positions psv_blacklist.txt --recod
 Let's do some quick QC checks on this
 
 How many individuals are left per population
-```{r}
+```{r, eval = FALSE}
 vcf <- read.vcfR("input_data/1.0_run3.recode.vcf")
 genind <- vcfR2genind(vcf)
 
@@ -341,7 +383,7 @@ overall$m_posteriors
 Mean het miscall rate for this dataset is 5.3%.
 
 Missing data?
-```{r}
+```{r, eval = FALSE}
 
 dp <- extract.gt(vcf, element = "DP", as.numeric=TRUE)
 
@@ -355,7 +397,7 @@ hist(myMiss)
 
 
 duplicates: there are a handful of individuals with duplicate sample names that wind up as strong outliers in the PCA let's remove these and see if they are driving the PCA structure
-```{r}
+```{r, eval = FALSE}
 colnames(vcf@gt) <- str_sub(colnames(vcf@gt), start = 1, end = 7)
 duplicated(colnames(vcf@gt))
 vcf3 <- vcf[, !duplicated(colnames(vcf@gt))]
@@ -363,12 +405,12 @@ vcf3 <- vcf[, !duplicated(colnames(vcf@gt))]
 ```
 
 Finally, lets save this vcf.
-```{r}
+```{r, eval = FALSE}
 write.vcf(vcf3,"input_data/vcf3.vcf.gz")
 ```
 
 Lets look at the unfolded SFS (i .e. maf distribution)
-```{r}
+```{r, eval = FALSE}
 mafs <- maf(vcf3)
 ggplot()+geom_density(aes(x = mafs[,4]))
 
@@ -394,10 +436,29 @@ run 3:
 
 Here we read in genetic data
 
-There are many version of the SNP dataset. For a first pass RDA we're going to to use one without PSV or LD filtering. 
-```{r, cache = TRUE, message = FALSE, warning=FALSE}
+First for the Vaux SNP dataset
+```{r, message=FALSE, warning=FALSE}
+#remove duplicates
+colnames(vcf_vaux@gt) <- str_sub(colnames(vcf_vaux@gt), start = 1, end = 7)
+#duplicated(colnames(vcf_vaux@gt))
+vcf_vaux <- vcf_vaux[, !duplicated(colnames(vcf_vaux@gt))]
+
+
+genind_vaux <- vcfR2genind(vcf_vaux)
+
+#now lets get the population information encoded
+#exclude BA because so much missing data that after imputation for missing data (to prep for PCA) it strongly weighs down analysis (on extreme of most MEMs, but imputation makes it very close to mean allele frequency)
+genind_vaux$pop <- as.factor(str_sub(row.names(genind_vaux$tab), 1, 2))
+genind_vaux <- genind_vaux[pop(genind_vaux) != "BA"]
+
+
+```
+
+
+Now for the other data (not evaluated in final notebook) here are many version of the SNP dataset. For a first pass RDA we're going to to use one without PSV or LD filtering. 
+```{r, cache = TRUE, message = FALSE, warning=FALSE, eval = FALSE}
 #vcf_vaux <- read.vcfR("input_data/populations.snps.vcf") # 12 site
-vcf_vaux <- read.vcfR("input_data/vaux_data/ori-pac-1-p2-r95-a3.vcf") # 2 site
+#vcf_vaux <- read.vcfR("input_data/vaux_data/ori-pac-1-p2-r95-a3.vcf") # 2 site
 
 #vcf <- read.vcfR("input_data/dayan2.snps.vcf")
 
@@ -482,7 +543,7 @@ sites <- read_tsv("input_data/rough_locations.txt")
 Nsites <- sites[c(1:10),]
 
 # now lets get the individual level dataset
-sites_big <- data.frame(pop = genind$pop)
+sites_big <- data.frame(pop = genind_vaux$pop)
 sites_big <- sites_big %>%
   left_join(sites, by = c("pop" = "Pop"))
 Nsites_big <- sites_big %>%
@@ -601,696 +662,17 @@ autoplot(pac_bathy, geom=c("r")) + scale_fill_gradientn(values = scales::rescale
 __Goals:__  
 For RDAs, the primary goal is to determine if we can find a decomposotion of spatial structure that significantly explains genetic structure in the dataset OTHER THAN the North/South structure successfully identified in the Vaux manuscript. If we identify structure the variable loadings from the RDAs can also be used for initial feature selection.
 
-__Note on dataset__ Here we run the first pass, fastest possible analysis using moran's eigenvector maps. We collapse genotypic data among individuals into principal components of genetic variation (thus cRDA). Note that larger analyses such as RDA on individual genotypes may have greater power and allow loadings on individual loci, but if this faster analysis discovers population substructure, than we can be encouraged to continue to these locus level analyses 
+__Note on dataset__ Here we run the first pass, fastest possible analysis using moran's eigenvector maps. We collapse genotypic data among individuals into principal components of genetic variation (thus cRDA). Note that larger analyses such as RDA on individual genotypes may have greater power and allow loadings on individual loci, but may be more prone to overfitting. If this faster, harder to overfit analysis discovers population substructure, than we can be encouraged to continue to these locus level analyses 
+
+## Vaux full rda
+
+the filtering approaches between the dataset used here and the vaux ms are pretty different, let's run the RDA, but with the vaux dataset.
 
 ### Genetic Data
 
-To fit the cRDA we need to get the PCs of genetic variation for each individual and the dbmems into a dataframe
+First prep the data: impute missing data, conduct PCA
 
-First the PCs for the full dataset
-```{r, cache = TRUE}
-#first replace missing data with mean frequency
-X <- tab(genind, freq = TRUE, NA.method = "mean")
-
-#then run pca
-pca1 <- dudi.pca(X, scale = FALSE, scannf = FALSE, nf = 324)
-
-#check pcs to keep with kaiser-guttman
-
-#kaiser guttman
-cutoff<-mean(pca1$eig)
-kg <- length((pca1$eig)[(pca1$eig)>cutoff])
-barplot(pca1$eig, main = "PCA eigenvalues")
-abline(h = cutoff, col = "red")
-
-#kept 149 PCs that exceed kaiserguttman, nope keep em all
-snp_pcs <- pca1$li#[,c(1:kg)]
-
-```
-
-Using the kaiser-guttman criteria, we kept the first 129 PCs in the full SNP dataset.
-
-Now Let's take a look at these populations in PC space. 
-```{r cache = TRUE, message=FALSE, warning=FALSE}
-#now plot data
-pca_plot_data <- as.data.frame(cbind(genind$pop, snp_pcs))
-pca_plot_data <- pca_plot_data %>%
-  rename(pop = "genind$pop")
-ggplot(data = pca_plot_data)+geom_point(aes(Axis1, Axis2, color = pop)) + stat_ellipse(aes(Axis1, Axis2, color = pop)) +theme_classic()
-
-ggplot(data = pca_plot_data)+geom_point(aes(Axis1, Axis3, color = pop)) + stat_ellipse(aes(Axis1, Axis3, color = pop)) +theme_classic()
-```
-
-No surpises here, same results as Vaux ms. Fst is too low for PCA to discriminate among pops within a gyre, but it does cluster S Pac samples apart from NPac and there are some samples with admixture between these two clusters. The only difference is that there are some strong outliers among the NC samples, potentially these are due to some of the filtering parameters being different. (check later)
-
-
-Now lets do the same, just for the north pacific samples
-```{r}
-##### now just the north samples
-
-#first replace missing data with mean frequency
-Xn <- tab(genind_north, freq = TRUE, NA.method = "mean")
-
-#then run pca
-pca_north <- dudi.pca(Xn, scale = FALSE, scannf = FALSE, nf = 245)
-
-#check pcs to keep with kaiser-guttman
-
-#kaiser guttman
-cutoff<-mean(pca_north$eig)
-kg <- length((pca_north$eig)[(pca_north$eig)>cutoff])
-barplot(pca_north$eig, main = "PCA eigenvalues")
-abline(h = cutoff, col = "red")
-
-#kept 117 PCs that exceed kaiserguttman
-#Nsnp_pcs <- pca_north$li[,c(1:kg)]
-
-#nope keep em all
-Nsnp_pcs <- pca_north$li
-
-#now plot data
-Npca_plot_data <- as.data.frame(cbind(genind_north$pop, Nsnp_pcs))
-Npca_plot_data <- Npca_plot_data %>%
-  rename(pop = "genind_north$pop")
-ggplot(data = Npca_plot_data)+geom_point(aes(Axis1, Axis2, color = pop)) + stat_ellipse(aes(Axis1, Axis2, color = pop)) +theme_classic()
-
-ggplot(data = Npca_plot_data)+geom_point(aes(Axis3, Axis4, color = pop)) + stat_ellipse(aes(Axis3, Axis4, color = pop)) +theme_classic()
-
-
-```
-
-Again, no surprises.  No evidence of structure within North Pacific when using PCA.
-
-
-
-### Full Dataset cRDA
-
-Now that we have gathered all of our variables, we'll fit the cRDA using the full dataset
-
-#### Global Test and Variable Selection
-
-```{r, cache = TRUE, message=FALSE, warning = FALSE, echo = FALSE }
-#global rda
-rda_null <- rda(snp_pcs ~ 1, data = dbmems)
-rda_full <- rda(snp_pcs ~ . , data = dbmems)
-
-
-#check that the full model is significant
-anova(rda_full) # 0.002 yes it is significant - proceed to variable selection
-
-#what the variance explained
-adjR2.rda_full <- RsquareAdj(rda_full)$adj.r.squared
-adjR2.rda_full
-
-
-#variable selection
-# here we do variable selection with three different forward selection approaches
-ordiR2 <- ordiR2step(rda_null, scope = formula(rda_full, data = dbmems))
-ordiR2$anova  
-ordi <- ordistep(rda_null, scope = formula(rda_full, data = dbmems)) 
-ordi$anova
-rda.fs <- forward.sel(Y = snp_pcs, X = dbmems, adjR2thresh = adjR2.rda_full)
-rda.fs 
-
-vif.cca(rda_full) # don't need to do this because mems should be orthagonal
-```
-
-
-All variable selection procedures agree on keeping MEM1, forward selection based on p-value along (ordistep) keeps MEM2 as well
-
-
-
-#### Final Model
-
-Now that we have established that the full model is signifcant and done variable selection to identify the spatial structures, let's build the final model. 
-
-```{r, cache=TRUE}
-#final model
-#rda_final <- rda(snp_pcs ~ MEM3 + MEM2 + MEM7 + MEM9 + MEM6 , data = mems)
-rda_final <- rda(snp_pcs ~ MEM1 + MEM2 , data = dbmems)
-
-#testing signficance of constrained axes (how many are interesting)
-rda_axis <- anova.cca(rda_final, by = 'axis', parallel = 3)
-rda_axis$p.adj <- p.adjust (rda_axis$`Pr(>F)`, method = 'holm')
-rda_axis
-
-#testing significance of explanatory variables by margin (each conditioned on all the others)
-rda_expl <-  anova.cca(rda_final, by = 'margin', parallel = 3)
-rda_expl$p.adj <- p.adjust (rda_expl$`Pr(>F)`, method = 'holm')
-rda_expl$pve<- rda_expl$Variance/sum(rda_expl$Variance)
-
-rda_expl
-```
-
-Permutation analyses suggest that the only the first redundant axis significantly correlate patterns in the spatial dataset with patterns in the genetic dataset. Separate permutations also show that the selected MEMs significantly explain the PCs.
-
-
-```{r, fig.cap="Screeplot of RDA - red is constrained axes, black is unconstrained axes"}
-## screeplot
-
-constrained_percent <- rda_final$CCA$eig/rda_final$tot.chi*100
-unconstrained_percent <- rda_final$CA$eig/rda_final$tot.chi*100
-barplot (c(constrained_percent, unconstrained_percent), col = c(rep ('red', length (constrained_percent)), rep ('black', length (unconstrained_percent))), las = 2, ylab = '% variation')
-```
-
-#### Full Pacific cRDA Results Summary
-
-```{r, cache = TRUE}
-
-## tri plot
-#site score
-rda_sum<-summary(rda_final, axes = c(2))
-scores <- as.data.frame(rda_sum$sites)
-scores$pop<-genind$pop
-
-
-#species scores
-arrows<-as.data.frame(rda_sum$biplot)
-
-#plot by pop
-ggplot()+geom_point(aes(RDA1, RDA2, color = pop), data = scores)+geom_segment(data=arrows, aes(x=0, y=0, xend=RDA1, yend=RDA2), arrow=arrow(length=unit(0.2,"cm")), color="black")+geom_text(data=arrows, aes(x=RDA1+RDA1*0.3, y=RDA2+RDA2*0.3, label=c("MEM1", "MEM2")), size = 4,  color="black")+stat_ellipse(aes(RDA1, RDA2, color = pop), data = scores)+theme_classic()+xlab("Redundant Axis 1\n0.86% of Total Variance\np-value 0.001")+ylab("Redundant Axis 2\n0.38% of Total Variance\np-value 0.17")+scale_color_manual(values = c("#a6cee3", "#1f78b4", "#b2df8a", "#33a02c", "#fb9a99", "#e31a1c", "#fdbf6f", "#ff7f00", "#cab2d6", "#6a3d9a", "#ffff99", "#b15928"))
-
-```
-
-We fit a global model of all variables. This full model was significant. We then performed forward variable selection. Three approaches yielded the same result and we built the final model on MEMs 1, and 2
-
-Only the first RDA axis is significant (i.e. explain significantly more than the equivalent unconstrained axes, Holms adjusted p value < 0.05). All explanatory variables (MEMs) in the final model are also significant (i.e. significantly greater explanation of variance for the variable, once the data is conditioned on all other variables, Holms adjusted p value < 0.05)
-
-Collectively these suggest that there is a significant relationship between genetic variation and spatial autocorrelation (although note this model did not attempt to parse population structure from autocorrelation). The first two constrained axes captured ~ 1.8% of the total variance in the model. Since only the first XXX PCs of genetic variation were included, we can not directly relate this back to FST, but a back of the napkin calculation would suggest we fit about half to total variance in the dataset. This would bring these results in close alignment with the Fst attributed to North vs South population genetic structure. 
-
-When we examine the spatial structures in the RDA triplot we can see that while MEMs 1 and 2 load strongly onto the first redundant axis, and this axis separates North from South pacific populations. This is not surprising given the results from the Vaux MS. 
-
-XXX remnant from keeping mem4 XXX  However, the second redundant axis provides very interesting results that suggest significant spatial structures that "are redundant with" genetic variance within the North Pacific. Specifically redundant axis 2 is driven almost exclusively by MEM4 and this MEM (while distance based and mostly separating Hawaii from all other samples), also maps strongly onto a N-S gradient within the west coast N Pac samples. Indeed when we examine the tri-plot we can observe clinal variation along the West Coast samples. This pattern (RDA2 separates N-S pops and Hawaii), may be due to (a) introgression tails from the southern hemisphere (as suggested by Vaux ms), (b) spatial autocorrelation produced by IBD within the North Pacific, or (c) an adaptive genetic cline. Parsing (c) from (a and b) may be possible with an environmental association analysis, but parsing (a) and (b) may be challenging without haplotypic data. Conducting the analysis on the North Pac only samples (below), may also clarify these patterns
-
-
-### North Pacific cRDA
-
-#### Global Test and Variable Selection
-```{r, cache = TRUE, message=FALSE, warning = FALSE}
-#global rda
-Nrda_null <- rda(Nsnp_pcs ~ 1, data = Ndbmems)
-Nrda_full <- rda(Nsnp_pcs ~ ., data = Ndbmems)
-
-
-#check that the full model is significant
-anova(Nrda_full) # 0.006 yes it is significant - proceed to variable selection
-
-#what the variance explained
-NadjR2.rda_full <- RsquareAdj(Nrda_full)$adj.r.squared
-NadjR2.rda_full
-
-
-#variable selection
-# here we do variable selection with three different forward selection approaches
-NordiR2 <- ordiR2step(Nrda_null, scope = formula(Nrda_full, data = Ndbmems))
-NordiR2$anova  
-Nordi <- ordistep(Nrda_null, scope = formula(Nrda_full, data = Ndbmems)) 
-Nordi$anova
-Nrda.fs <- forward.sel(Y = Nsnp_pcs, X = Ndbmems, adjR2thresh = NadjR2.rda_full)
-Nrda.fs 
-
-```
-
-Global is significant, variable selection keeps both MEMs
-
-#### Final Model
-
-Now that we have established that the full model is signifcant and done variable selection to identify the spatial structures, let's build the final model. 
-
-```{r, cache=TRUE}
-#final model
-Nrda_final <- rda(Nsnp_pcs ~ MEM2, data = Ndbmems)
-
-#testing signficance of constrained axes (how many are interesting)
-rda_axis <- anova.cca(Nrda_final, by = 'axis', parallel = 3)
-rda_axis$p.adj <- p.adjust (rda_axis$`Pr(>F)`, method = 'holm')
-rda_axis
-
-#testing significance of explanatory variables by margin (each conditioned on all the others)
-rda_expl <-  anova.cca(Nrda_final, by = 'margin', parallel = 3)
-rda_expl$p.adj <- p.adjust (rda_expl$`Pr(>F)`, method = 'holm')
-rda_expl$pve<- rda_expl$Variance/sum(rda_expl$Variance)
-
-rda_expl
-```
-
-Keep 2 RDAs; all MEMs
-
-
-#### North Pacific cRDA Results Summary
-
-
-```{r, cache = TRUE}
-
-## tri plot
-#site score
-Nrda_sum<-summary(Nrda_final, axes = c(2))
-Nscores <- as.data.frame(Nrda_sum$sites)
-Nscores$pop<-genind_north$pop
-
-
-#species scores
-Narrows<-as.data.frame(Nrda_sum$biplot)
-
-#plot by pop
-#ggplot()+geom_point(aes(RDA1, RDA2, color = pop), data = Nscores)+geom_segment(data=Narrows, aes(x=0, y=0, xend=RDA1, yend=RDA2), arrow=arrow(length=unit(0.2,"cm")), color="black")+geom_text(data=Narrows, aes(x=RDA1+RDA1*0.3, y=RDA2+RDA2*0.3, label=c("MEM1", "MEM2")), size = 4,  color="black")+stat_ellipse(aes(RDA1, RDA2, color = pop), data = Nscores)+theme_classic()+xlab("Redundant Axis 1\n0.48% of Total Variance\np-value=0.18")+ylab("Redundant Axis 2\n0.44% of Total Variance\np-value=0.54")+scale_color_discrete()+ggtitle("NPAC RDA\nglobal p-value 0.31")#+scale_color_viridis_d(option = "A")
-
-ggplot()+geom_point(aes(RDA1, PC1, color = pop), data = Nscores)+geom_segment(data=Narrows, aes(x=0, y=0, xend=RDA1, yend=PC1), arrow=arrow(length=unit(0.2,"cm")), color="black")+geom_text(data=Narrows, aes(x=RDA1+RDA1*0.3, y=PC1+PC1*0.3, label=c("MEM2")), size = 4,  color="black")+stat_ellipse(aes(RDA1, PC1, color = pop), data = Nscores)+theme_classic()+xlab("Redundant Axis 1\n0.48% of Total Variance\np-value=0.2")+ylab("PC axis 1")+scale_color_discrete()+ggtitle("NPAC RDA\nglobal p-value 0.19")#+scale_color_viridis_d(option = "A")
-```
-
-We fit a global model of all variables. This full model was significant. We then performed forward variable selection. Three approaches yielded the same result and we built the final model on MEMs 1, and 2.
-
-Only the first 2 RDA axes are significant (i.e. explain significantly more than the equivalent unconstrained axes, Holms adjusted p value < 0.05). All explanatory variables (MEMs) in the final model are also significant (i.e. significantly greater explanation of variance for the variable, once the data is conditioned on all other variables, Holms adjusted p value < 0.05)
-
-Collectively these suggest that there is a significant relationship between genetic variation and spatial autocorrelation at the tested scales. The first two constrained axes captured ~ 0.9% of the total variance in the model. Since only the first 117 PCs of genetic variation were included, we can not directly relate this back to FST. 
-
-When we examine the RDA triplot we can see that MEMs 1 and 2 load strongly onto different redundant axes. Three clusters of populations are apparent: eastern (West coast N America), central (Hawaii), and western (Japan + Phillipines). RDA1 (and MEM2) separates all three clusters of populations with western cluster intermediate, while RDA2 (and MEM1) clusters the eastern and central clusters together and spearates the western cluster. Taken together, it is possible to explain a small portion of the genetic variation in the north Pacifc as a result of spatial auotocorrelation among these three clusters, although there may be other demographic and selective scenarios that can produce similar patterns (see discussion below)
-
-
-
-### cRDA Discussion
-
-Both cRDAs show that there are spatial structures at a variety scales that can explain variation in the genetic variation within the Pacific. However synthesizing the results from the North Pacific dataset and the full dataset raises some questions.
-
-__(1) Is there a N-S cline within the N Pac samples, if so why don't we see it in the NPac cRDA?__  
-Since our MEMs are dbMEMs, they are a spectral decomposition of the _distances_ between populations. No dbMEMs in the North Pacific dataset captured this N-S gradient. I'm not sure why the finest scale saptial autocorrelation was not captured by a MEM with positive Moran's I. Perhaps using a different spatial neighborhood to generate MEMs would capture this pattern, or we could just test for it directly by isolating these samples, or fitting for latitude.  
-
-In any case, the absence of the pattern in the North Pac cRDA is most easily explained by the fact that we did not test for it. An explicit test of latitude as an explanation for genetic variation is possible, and we can even parse this from spatial autocorrelation _per se_ with yet another RDA or other canonical ordination approach.
-
-__(2) Is this overfit?__  
-
-Maybe.  
-
-A lesson from population genomics on marine organisms is that we have so much data that we tend to find patterns whenever we look for them. While a lot of authors attribute this to efficiency of selection in large populations coupled with abundant environmental gradients, overfitting is also a concern. Several lines of evidence suggest these results should be robust to overfitting. (1) Only kept principal components of genetic variation that exceeded a criterion, didn't fit on the full dataset and (2) the analysis should be resistant to overfitting in the traditional sense because n (samples) >> p (predictors: MEMs) and we performed variable selection on the tiny number of predictors we did use. However, there's enough variation in the response variables (SNP PCA) that there is a possibility that the TRUE patterns in the dataset we are modeling are not true in nature (i.e. our procedures for avoiding overfitting are all focused on the explanatory variable side). Only validation with new data can confirm. Alternatively, we could attempt to conduct some type of cross-validation approach. This might be worthwhile before selecting SNPs.
-
-__(3) N-S Admixture Cline, N PAC E-W Clusters, Clustered Clines?__
-
-The biggest challenge going forward is that the RDAs have demonstrated that there are genetic patterns at a __diversity__ of spatial scales and patterns. Therefore there is no clear choice for clustering that will allow us to group sampling sites into sub-populations for later genetic stock identification. This is a common problem in seascape genetics: we a trying to cluster a cline.
-
-
-We might be able to parse the N-S cline 
-However the most powerful MEMs are always the ones that are capturing N-S structure. Therefore it seems likely that what's actually going on here is that Latitude is a better predictor of genetics than spatial autocorrelation. We can test this by explicitly including latitude and then doing variance paritioning / pRDA. Because the SWM seems to mostly capture E-W distance, this might actually have some power. 
-
-## Latitude
-
-
-```{r}
-lat_data <- cbind(dbmems, abs(sites_big$Latitude))
-colnames(lat_data)[5] <- "lat"
-
-
-lat_rda_null <- rda(snp_pcs ~ 1, data = lat_data)
-lat_rda_full <- rda(snp_pcs ~ ., data = lat_data)
-
-lat_ordiR2 <- ordiR2step(lat_rda_null, scope = formula(lat_rda_full, data = lat_data))
-lat_ordiR2$anova  
-
-# latitude not included in variable selection
-
-
-
-lat_rda_final <- rda(snp_pcs ~ MEM1 + MEM2 + lat, data = lat_data)
-
-vif.cca(lat_rda_final)
-
-
-#testing signficance of constrained axes (how many are interesting)
-rda_axis <- anova.cca(lat_rda_final, by = 'axis', parallel = 3)
-rda_axis$p.adj <- p.adjust (rda_axis$`Pr(>F)`, method = 'holm')
-rda_axis
-
-#testing significance of explanatory variables by margin (each conditioned on all the others)
-rda_expl <-  anova.cca(lat_rda_final, by = 'margin', parallel = 3)
-rda_expl$p.adj <- p.adjust (rda_expl$`Pr(>F)`, method = 'holm')
-rda_expl$pve<- rda_expl$Variance/sum(rda_expl$Variance)
-
-rda_expl
-
-#commented out below because lat not retained so already did this analysis
-
-vp <- varpart(snp_pcs , lat_data[,c(1,2)] , lat_data[,5])
-vp
-
-rda_con_spatial<-rda(snp_pcs ~  lat + Condition(MEM1 + MEM2), data = lat_data)
-anova(rda_con_spatial)
-
-rda_sum<-summary(lat_rda_final, axes = c(2))
-scores <- as.data.frame(rda_sum$sites)
-scores$pop<-genind$pop
-scores$lat <- lat_data$lat
-
-
-#species scores
-arrows<-as.data.frame(rda_sum$biplot)
-
-#plot by lat
-#ggplot()+geom_point(aes(RDA1, RDA2, color = lat), data = scores)+geom_segment(data=arrows, aes(x=0, y=0, xend=RDA1, yend=RDA2), arrow=arrow(length=unit(0.2,"cm")), color="black")+stat_ellipse(aes(RDA1, RDA2, color = pop), data = scores)+theme_classic()+xlab("Redundant Axis 1\n1.5% of Total Variance")+ylab("Redundant Axis 2\n0.48% of Total Variance")+scale_color_viridis_c()
-
-
-#plot by pop
-ggplot()+geom_point(aes(RDA1, RDA2, color = pop), data = scores)+geom_segment(data=arrows, aes(x=0, y=0, xend=RDA1, yend=RDA2), arrow=arrow(length=unit(0.2,"cm")), color="black")+geom_text(data=arrows, aes(x=RDA1+RDA1*0.3, y=RDA2+RDA2*0.3, label=c("MEM1", "MEM2", "Latitude")), size = 4,  color="black")+stat_ellipse(aes(RDA1, RDA2, color = pop), data = scores)+theme_classic()+xlab("Redundant Axis 1\n1.5% of Total Variance")+ylab("Redundant Axis 2\n0.48% of Total Variance")+scale_color_discrete()#+scale_color_viridis_d(option = "A")
-```
-
-
-```{r}
-Nlat_data <- cbind(Ndbmems, abs(Nsites_big$Latitude))
-colnames(Nlat_data)[3] <- "lat"
-
-
-Nlat_rda_null <- rda(Nsnp_pcs ~ 1, data = Nlat_data)
-Nlat_rda_full <- rda(Nsnp_pcs ~ ., data = Nlat_data)
-
-anova(Nlat_rda_full)
-
-Nlat_ordiR2 <- ordiR2step(Nlat_rda_null, scope = formula(Nlat_rda_full, data = Nlat_data, Pin = 0.5))
-Nlat_ordiR2$anova  
-
-Nlat_rda_final <- rda(Nsnp_pcs ~ MEM1 + MEM2+ lat, data = Nlat_data)
-
-vif.cca(Nlat_rda_final)
-
-rda_expl <-  anova.cca(Nlat_rda_final, by = 'margin', parallel = 3)
-rda_expl$p.adj <- p.adjust (rda_expl$`Pr(>F)`, method = 'holm')
-rda_expl$pve<- rda_expl$Variance/sum(rda_expl$Variance)
-
-rda_expl
-
-#testing signficance of constrained axes (how many are interesting)
-rda_axis <- anova.cca(Nlat_rda_final, by = 'axis', parallel = 3)
-rda_axis$p.adj <- p.adjust (rda_axis$`Pr(>F)`, method = 'holm')
-rda_axis
-
-
-vp <- varpart(Nsnp_pcs , Nlat_data[,c(1)] , Nlat_data[,c(3)])
-vp
-
-rda_con_spatial<-rda(Nsnp_pcs ~  lat + Condition(MEM1 + MEM2), data = Nlat_data)
-anova(rda_con_spatial)
-
-
-rda_sum<-summary(Nlat_rda_final, axes = c(2))
-scores <- as.data.frame(rda_sum$sites)
-scores$pop<-genind_north$pop
-scores$lat <- Nlat_data$lat
-
-
-#species scores
-arrows<-as.data.frame(rda_sum$biplot)
-
-#plot by lat
-ggplot()+geom_point(aes(RDA1, RDA2, color = lat), data = scores)+geom_segment(data=arrows, aes(x=0, y=0, xend=RDA1, yend=RDA2), arrow=arrow(length=unit(0.2,"cm")), color="black")+geom_text(data=arrows, aes(x=RDA1+RDA1*0.3, y=RDA2+RDA2*0.3, label=c("MEM1", "MEM2", "Latitude")), size = 4,  color="black")+theme_classic()+xlab("Redundant Axis 1\n1.5% of Total Variance")+ylab("Redundant Axis 2\n0.48% of Total Variance")+scale_color_viridis_c()
-
-
-
-#plot by pop
-ggplot()+geom_point(aes(RDA1, RDA2, color = pop), data = scores, alpha = 0.8)+geom_segment(data=arrows, aes(x=0, y=0, xend=RDA1, yend=RDA2), arrow=arrow(length=unit(0.2,"cm")), color="black")+geom_text(data=arrows, aes(x=RDA1+RDA1*0.3, y=RDA2+RDA2*0.3, label=c("MEM1", "MEM2", "Latitude")), size = 4,  color="black")+stat_ellipse(aes(RDA1, RDA2, color = pop), data = scores)+theme_classic()+xlab("Redundant Axis 1\n0.48% of Total Variance\npvalue = 0.139 ")+ylab("Redundant Axis 2\n0.46% of Total Variance\np-value = 0.52")#+scale_color_manual(values = c("#a6cee3", "#1f78b4", "#b2df8a", "#33a02c", "#fb9a99", "#e31a1c", "#fdbf6f", "#ff7f00", "#cab2d6", "#6a3d9a", "#ffff99", "#b15928"))
-```
-
-
-```{r}
-Nlat_data <- cbind(Ndbmems, abs(Nsites_big$Latitude))
-colnames(Nlat_data)[3] <- "lat"
-
-
-Nlat_rda_null <- rda(Nsnp_pcs ~ 1, data = Nlat_data)
-Nlat_rda_full <- rda(Nsnp_pcs ~ ., data = Nlat_data)
-
-Nlat_ordiR2 <- ordiR2step(Nlat_rda_null, scope = formula(Nlat_rda_full, data = Nlat_data))
-Nlat_ordiR2$anova  
-
-ordi <- ordistep(Nlat_rda_null, scope = formula(Nlat_rda_full, data = Ndbmems)) 
-ordi$anova
-rda.fs <- forward.sel(Y = Xn, X = Ndbmems, adjR2thresh = adjR2.rda_full)
-rda.fs
-
-
-Nlat_rda_final <- rda(Nsnp_pcs ~ lat , data = Nlat_data)
-
-vif.cca(lat_rda_final)
-
-rda_expl <-  anova.cca(Nlat_rda_final, by = 'margin', parallel = 3)
-rda_expl$p.adj <- p.adjust (rda_expl$`Pr(>F)`, method = 'holm')
-rda_expl$pve<- rda_expl$Variance/sum(rda_expl$Variance)
-
-
-vp <- varpart(snp_pcs , lat_data[,c(1,2,4)] , lat_data[,c(5)])
-
-rda_con_spatial<-rda(snp_pcs ~  lat + Condition(MEM1 + MEM2 + MEM4), data = lat_data)
-
-rda_sum<-summary(Nlat_rda_final, axes = c(2))
-scores <- as.data.frame(rda_sum$sites)
-scores$pop<-genind_north$pop
-scores$lat <- Nlat_data$lat
-
-
-#species scores
-arrows<-as.data.frame(rda_sum$biplot)
-
-#plot by lat
-ggplot()+geom_point(aes(RDA1, PC1, color = lat), data = scores)+geom_segment(data=arrows, aes(x=0, y=0, xend=RDA1, yend=RDA2), arrow=arrow(length=unit(0.2,"cm")), color="black")+stat_ellipse(aes(RDA1, RDA2, color = lat), data = scores)+theme_classic()+xlab("Redundant Axis 1\n1.5% of Total Variance")+ylab("Redundant Axis 2\n0.48% of Total Variance")+scale_color_viridis_c()
-
-
-
-#plot by pop
-ggplot()+geom_point(aes(RDA1, PC1, color = pop), data = scores, alpha = 0.8)+geom_segment(data=arrows, aes(x=0, y=0, xend=RDA1, yend=PC1), arrow=arrow(length=unit(0.2,"cm")), color="black")+geom_text(data=arrows, aes(x=RDA1+RDA1*0.3, y=PC1+PC1*0.3, label=c("Lat")), size = 4,  color="black")+stat_ellipse(aes(RDA1, PC1, color = pop), data = scores)+theme_classic()+xlab("Redundant Axis 1\n1.5% of Total Variance")+ylab("Redundant Axis 2\n0.48% of Total Variance")+scale_color_manual(values = c("#a6cee3", "#1f78b4", "#b2df8a", "#33a02c", "#fb9a99", "#e31a1c", "#fdbf6f", "#ff7f00", "#cab2d6", "#6a3d9a", "#ffff99", "#b15928"))
-```
- 
-# RDA outlier analysis
-
-Here I take what I've learned from the cRDAs to find spatial outliers SNPs that are candidates for a GTseq panel
-
-First we collect the SNPs for spatial structure alone
-
-The first step is fitting the RDAs and testing all the variables
-```{r, cache = TRUE}
-snp_rda_null <- rda(X ~ 1, data = dbmems)
-snp_rda_full <- rda(X ~ . , data = dbmems)
-
-
-#check that the full model is significant
-anova(snp_rda_full) # 0.002 yes it is significant - proceed to variable selection
-
-#what the variance explained
-adjR2.rda_full <- RsquareAdj(snp_rda_full)$adj.r.squared
-adjR2.rda_full
-
-
-#variable selection
-# here we do variable selection with three different forward selection approaches
-snp_ordiR2 <- ordiR2step(snp_rda_null, scope = formula(snp_rda_full, data = dbmems))
-snp_ordiR2$anova  
-snpordi <- ordistep(snp_rda_null, scope = formula(snp_rda_full, data = dbmems)) 
-snpordi$anova
-#rda.fs <- forward.sel(Y = snp_pcs, X = dbmems, adjR2thresh = adjR2.rda_full)
-#rda.fs 
-
-```
-
-```{r, cache = TRUE}
-snp_rda_final <- rda(X ~ MEM1 + MEM2, data = dbmems)
-
-#testing signficance of constrained axes (how many are interesting)
-rda_axis <- anova.cca(snp_rda_final, by = 'axis', parallel = 3)
-rda_axis$p.adj <- p.adjust (rda_axis$`Pr(>F)`, method = 'holm')
-rda_axis
-
-#testing significance of explanatory variables by margin (each conditioned on all the others)
-rda_expl <-  anova.cca(snp_rda_final, by = 'margin', parallel = 3)
-rda_expl$p.adj <- p.adjust (rda_expl$`Pr(>F)`, method = 'holm')
-rda_expl$pve<- rda_expl$Variance/sum(rda_expl$Variance)
-
-rda_expl
-
-## tri plot
-#site score
-rda_sum<-summary(snp_rda_final, axes = c(2))
-scores <- as.data.frame(rda_sum$sites)
-scores$pop<-genind$pop
-
-
-#species scores
-arrows<-as.data.frame(rda_sum$biplot)
-
-#plot by pop
-ggplot()+geom_point(aes(RDA1, RDA2, color = pop), data = scores)+geom_segment(data=arrows, aes(x=0, y=0, xend=RDA1, yend=RDA2), arrow=arrow(length=unit(0.2,"cm")), color="black")+geom_text(data=arrows, aes(x=RDA1+RDA1*0.3, y=RDA2+RDA2*0.3, label=c("MEM1", "MEM2")), size = 4,  color="black")+stat_ellipse(aes(RDA1, RDA2, color = pop), data = scores)+theme_classic()+xlab("Redundant Axis 1\n1.5% of Total Variance")+ylab("Redundant Axis 2\n0.48% of Total Variance")+scale_color_discrete()#+scale_color_viridis_d(option = "A")
-
-```
-
-```{r, cache = TRUE}
-
-#north snp rda
-
-Nsnp_rda_null <- rda(Xn ~ 1, data = Ndbmems)
-Nsnp_rda_full <- rda(Xn ~ . , data =Ndbmems)
-
-
-#check that the full model is significant
-anova(Nsnp_rda_full) # 0.002 yes it is significant - proceed to variable selection
-
-#what the variance explained
-adjR2.rda_full <- RsquareAdj(Nsnp_rda_full)$adj.r.squared
-adjR2.rda_full
-
-
-#variable selection
-# here we do variable selection with three different forward selection approaches
-Nsnp_ordiR2 <- ordiR2step(Nsnp_rda_null, scope = formula(Nsnp_rda_full, data = Ndbmems))
-Nsnp_ordiR2$anova  
-Nordi <- ordistep(Nsnp_rda_null, scope = formula(Nsnp_rda_full, data = Ndbmems)) 
-Nordi$anova
-#rda.fs <- forward.sel(Y = Xn, X = Ndbmems, adjR2thresh = adjR2.rda_full)
-#rda.fs 
-
-vif.cca(rda_full) # don't need to do this because mems should be orthagonal
-
-Nsnp_rda_final <- rda(Xn ~ MEM1 + MEM2, data = Ndbmems)
-
-## tri plot
-#site score
-rda_sum<-summary(Nsnp_rda_final, axes = c(2))
-scores <- as.data.frame(rda_sum$sites)
-scores$pop<-genind_north$pop
-
-
-#species scores
-arrows<-as.data.frame(rda_sum$biplot)
-
-#plot by pop
-ggplot()+geom_point(aes(RDA1, RDA2, color = pop), data = scores)+geom_segment(data=arrows, aes(x=0, y=0, xend=RDA1, yend=RDA2), arrow=arrow(length=unit(0.2,"cm")), color="black")+geom_text(data=arrows, aes(x=RDA1+RDA1*0.3, y=RDA2+RDA2*0.3, label=c("MEM1", "MEM2")), size = 4,  color="black")+stat_ellipse(aes(RDA1, RDA2, color = pop), data = scores)+theme_classic()+xlab("Redundant Axis 1\n1.5% of Total Variance")+ylab("Redundant Axis 2\n0.48% of Total Variance")+scale_color_discrete()#+scale_color_viridis_d(option = "A")
-```
-
-north pac SNP rda: not significant
-
-Now that the RDAs are fit let's pull out the SNPs that load onto the RDs.
-
-```{r}
-snp_loading <- as.data.frame(scores(snp_rda_final, display = "species"))
-
-n_snp_loading <- as.data.frame(scores(Nsnp_rda_final, display = "species"))
-
-a <- ggplot(data = snp_loading)+geom_histogram(aes(x =scale(RDA1)))+theme_classic()+ggtitle(paste("Full Pacific RDA 1\n",sum(abs(scale(snp_loading$RDA1)) > 3)/2, sep = "" ))+xlab("Z-scores of SNP loadings")+geom_vline(aes(xintercept = 3), color = "red")+geom_vline(aes(xintercept = -3), color = "red")
-
-b <- ggplot(data = snp_loading)+geom_histogram(aes(x =scale(RDA2)))+theme_classic()+ggtitle(paste("Full Pacific RDA 2\n",sum(abs(scale(snp_loading$RDA2)) > 3)/2, sep = "" ))+xlab("Z-scores of SNP loadings")+geom_vline(aes(xintercept = 3), color = "red")+geom_vline(aes(xintercept = -3), color = "red")
-
-c <- ggplot(data = n_snp_loading)+geom_histogram(aes(x =scale(RDA1)))+theme_classic()+ggtitle(paste("North Pacific RDA 1\n",sum(abs(scale(n_snp_loading$RDA1)) > 3)/2, sep = "" ))+xlab("Z-scores of SNP loadings")+geom_vline(aes(xintercept = 3), color = "red")+geom_vline(aes(xintercept = -3), color = "red")
-
-d <- ggplot(data = n_snp_loading)+geom_histogram(aes(x =scale(RDA2)))+theme_classic()+ggtitle(paste("North Pacific RDA 1\n",sum(abs(scale(n_snp_loading$RDA2)) > 3)/2, sep = "" ))+xlab("Z-scores of SNP loadings")+geom_vline(aes(xintercept = 3), color = "red")+geom_vline(aes(xintercept = -3), color = "red")
-
-cowplot::plot_grid(a,b,c,d)
-
-#count the number of outliers 
-sum(abs(scale(snp_loading$RDA1)) > 3)/2
-sum(abs(scale(snp_loading$RDA2)) > 3)/2
-sum(abs(scale(n_snp_loading$RDA1)) > 3)/2
-sum(abs(scale(n_snp_loading$RDA2)) > 3)/2
-```
-
-Are SNPs that fall into the tails of these distributions rare or common?
-
-```{r}
-
-n_s_snps <- row.names(snp_loading[which(abs(scale(snp_loading$RDA1)) > 3,),])
-n_s_snps <- str_sub(n_s_snps, 1, nchar(n_s_snps)-2)
-n_s_snps <- genind[loc = n_s_snps]
-
-mafs_n_s <- minorAllele(n_s_snps)
-mafs_all <- minorAllele(genind)
-
-x <- as.data.frame(cbind(mafs_n_s, rep("n_s", length(mafs_n_s))))
-y <- as.data.frame(cbind(mafs_all, rep("all", length(mafs_all))))
-colnames(x) <- c("maf", "set")
-colnames(y) <- c("maf", "set")
-y$maf <- as.numeric(levels(y$maf))[y$maf]
-x$maf <- as.numeric(levels(x$maf))[x$maf]
-
-
-maf_comp <- as.data.frame(rbind(x,y)) 
-
-ggplot(data=maf_comp)+geom_density(aes(x = maf, color= set))+xlim(0, 0.5)
-```
-
-Common alleles are vastly over-represented among those that load strongly onto the axis separating N from S pacific samples.
-
-What about the non-significant rda axes from north pac
-
-```{r}
-
-n_s_snps <- row.names(snp_loading[which(abs(scale(n_snp_loading$RDA1)) > 3,),])
-n_s_snps <- str_sub(n_s_snps, 1, nchar(n_s_snps)-2)
-n_s_snps <- genind_north[loc = n_s_snps]
-
-mafs_n_s <- minorAllele(n_s_snps)
-mafs_all <- minorAllele(genind_north)
-
-x <- as.data.frame(cbind(mafs_n_s, rep("n_s", length(mafs_n_s))))
-y <- as.data.frame(cbind(mafs_all, rep("all", length(mafs_all))))
-colnames(x) <- c("maf", "set")
-colnames(y) <- c("maf", "set")
-y$maf <- as.numeric(levels(y$maf))[y$maf]
-x$maf <- as.numeric(levels(x$maf))[x$maf]
-
-
-maf_comp <- as.data.frame(rbind(x,y)) 
-
-ggplot(data=maf_comp)+geom_density(aes(x = maf, color= set))+xlim(0, 0.5)
-```
-
-```{r}
-priv <- poppr::private_alleles(genind)
-rowSums(priv)
-
-
-```
-
-
-
-# Vaux full rda
-
-the filtering approaches between the dataset used here and the vaux ms are pretty different, let's take a look at the RDA, but with the vaux dataset.
-
-data prep
-```{r}
-#remove duplicates
-colnames(vcf_vaux@gt) <- str_sub(colnames(vcf_vaux@gt), start = 1, end = 7)
-duplicated(colnames(vcf_vaux@gt))
-vcf_vaux <- vcf_vaux[, !duplicated(colnames(vcf_vaux@gt))]
-
-
-genind_vaux <- vcfR2genind(vcf_vaux)
-
-#now lets get the population information encoded
-genind_vaux$pop <- as.factor(str_sub(row.names(genind_vaux$tab), 1, 2))
-genind_vaux <- genind_vaux[pop(genind_vaux) != "BA"]
-
-
-
-# now lets get the individual level dataset
-sites_big <- data.frame(pop = genind_vaux$pop)
-sites_big <- sites_big %>%
-  left_join(sites, by = c("pop" = "Pop"))
-
-
-#first convert all lat lon to geodetic cartesian coords
-
-#anti-meridian causes an issue, let's fix it
-sites_big<- sites_big %>%
-  mutate(Longitude = if_else(Longitude < 0, Longitude + 360, Longitude))
-
-#now calc geodetic coords
-require(SoDA)
-XY_big <- geoXY(sites_big[,3], sites_big[,4], unit =1000)
-
-#add jitter
-XY_big[,1] <- jitter(XY_big[,1])
-XY_big[,2]<- jitter(XY_big[,2])
-
-
-#now calculate dbMEMs (spatial autocorrelation)
-dbmems <- dbmem(XY_big, MEM.autocor = "positive")
-
-barplot(attr(dbmems, "values"), 
-        main = "Eigenvalues of the spatial weighting matrix\nProportional to Moran's I\nFull Dataset", cex.main = 0.7)
-
+```{r, message=FALSE, warning=FALSE}
 
 #first replace missing data with mean frequency
 X <- tab(genind_vaux, freq = TRUE, NA.method = "mean")
@@ -1307,7 +689,7 @@ barplot(pca1$eig, main = "PCA eigenvalues")
 abline(h = cutoff, col = "red")
 
 #kept all PCs
-snp_pcs <- pca1$li[,c(1:kg)]
+snp_pcs <- pca1$li#[,c(1:kg)]
 
 #now plot data
 pca_plot_data <- as.data.frame(cbind(genind_vaux$pop, snp_pcs))
@@ -1318,7 +700,11 @@ ggplot(data = pca_plot_data)+geom_point(aes(Axis1, Axis2, color = pop)) + stat_e
 ggplot(data = pca_plot_data)+geom_point(aes(Axis1, Axis3, color = pop)) + stat_ellipse(aes(Axis1, Axis3, color = pop)) +theme_classic()
 ```
 
-rda
+
+
+### RDA
+
+Now we fit the RDA and test for global significance
 ```{r, cache = TRUE, message=FALSE, warning = FALSE, echo = FALSE }
 #global rda
 rda_null <- rda(snp_pcs ~ 1, data = dbmems)
@@ -1327,7 +713,11 @@ rda_full <- rda(snp_pcs ~ . , data = dbmems)
 
 #check that the full model is significant
 anova(rda_full) # 0.002 yes it is significant - proceed to variable selection
+```
 
+Full model is significant (p = 0.001). Proceed to variable selection. Here we conduct forward varaible selection on an AIC like value (ordistep), p-value and R2 (ordir2step), and finally permutation of residuals (forward.sel).
+
+```{r, cache = TRUE, message=FALSE, warning = FALSE, echo = FALSE }
 #what the variance explained
 adjR2.rda_full <- RsquareAdj(rda_full)$adj.r.squared
 adjR2.rda_full
@@ -1345,8 +735,7 @@ rda.fs
 vif.cca(rda_full) # don't need to do this because mems should be orthagonal
 ```
 
-
-keep mem1 2 and 3
+Here one method chooses all three mems, while the other two just keep mem1 and mem2. Not too concerned with overfitting for this analysis, so lets be less conservative and keep all three
 
 ```{r, cache=TRUE}
 #final model
@@ -1366,6 +755,10 @@ rda_expl$pve<- rda_expl$Variance/sum(rda_expl$Variance)
 rda_expl
 ```
 
+First two RDs and all MEMs significant adjusted p-value < 0.05.
+
+Now lets plot these
+
 ```{r}
 ## tri plot
 #site score
@@ -1378,201 +771,27 @@ scores$pop<-genind_vaux$pop
 arrows<-as.data.frame(rda_sum$biplot)
 
 #plot by pop
-ggplot()+geom_point(aes(RDA1, RDA2, color = pop), data = scores)+geom_segment(data=arrows, aes(x=0, y=0, xend=RDA1, yend=RDA2), arrow=arrow(length=unit(0.2,"cm")), color="black")+geom_text(data=arrows, aes(x=RDA1+RDA1*0.3, y=RDA2+RDA2*0.3, label=c("MEM1", "MEM2","MEM3")), size = 4,  color="black")+stat_ellipse(aes(RDA1, RDA2, color = pop), data = scores)+theme_classic()+xlab("Redundant Axis 1\n~1.5%% of Total Variance\np-value 0.001")+ylab("Redundant Axis 2\n0.45% of Total Variance\np-value 0.002")+scale_color_manual(values = c("#a6cee3", "#1f78b4", "#b2df8a", "#33a02c", "#fb9a99", "#e31a1c", "#fdbf6f", "#ff7f00", "#cab2d6", "#6a3d9a", "#ffff99", "#b15928"))
+ggplot()+geom_point(aes(RDA1, RDA2, color = pop), data = scores)+geom_segment(data=arrows, aes(x=0, y=0, xend=RDA1, yend=RDA2), arrow=arrow(length=unit(0.2,"cm")), color="black")+geom_text(data=arrows, aes(x=RDA1+RDA1*0.3, y=RDA2+RDA2*0.3, label=c("MEM1", "MEM2","MEM3")), size = 4,  color="black")+stat_ellipse(aes(RDA1, RDA2, color = pop), data = scores)+theme_classic()+xlab("Redundant Axis 1\n~0.7%% of Total Variance\n adjusted p-value 0.012")+ylab("Redundant Axis 2\n0.35% of Total Variance\n adjusted p-value 0.002")+scale_color_manual(values = c("#a6cee3", "#1f78b4", "#b2df8a", "#33a02c", "#fb9a99", "#e31a1c", "#fdbf6f", "#ff7f00", "#cab2d6", "#6a3d9a", "#ffff99", "#b15928"))
+
 
 ```
 
-# Vaux north rda
-```{r}
-#lets collect just the north pacific
-genind_vaux_north <- genind_vaux[pop(genind_vaux) != "TS" & pop(genind_vaux) != "NC"]
+### Summary
 
+We fit a global model of all variables. This full model was significant. We then performed forward variable selection. Three approaches yielded different results and we built the final model on MEMs 1, and 2, 3
 
-#first replace missing data with mean frequency
-Xn <- tab(genind_vaux_north, freq = TRUE, NA.method = "mean")
+Only the first two RDA axes were significant (i.e. explain significantly more than the equivalent unconstrained axes, Holms adjusted p value < 0.05). All explanatory variables (MEMs) in the final model are also significant (i.e. significantly greater explanation of variance for the variable, once the data is conditioned on all other variables, Holms adjusted p value < 0.05)
 
-#then run pca
-pca_north <- dudi.pca(Xn, scale = FALSE, scannf = FALSE, nf = 245)
+Collectively these suggest that there is a significant relationship between genetic variation and spatial autocorrelation (although note this model did not attempt to parse population structure from autocorrelation per se). The first two constrained axes captured ~ 1% of the total variance in the PCA. 
 
-#check pcs to keep with kaiser-guttman
+When we examine the spatial structures in the RDA triplot we can see that MEMs 1 and 2 load strongly onto the first redundant axis, and this axis separates North from South pacific populations. MEM3 loads mostly onto the second RDA and captures some spatail autocorrelatio within the NPACsamples
 
-#kaiser guttman
-cutoff<-mean(pca_north$eig)
-kg <- length((pca_north$eig)[(pca_north$eig)>cutoff])
-barplot(pca_north$eig, main = "PCA eigenvalues")
-abline(h = cutoff, col = "red")
+## vaux SNP RDA
 
-#kept 117 PCs that exceed kaiserguttman
-#Nsnp_pcs <- pca_north$li[,c(1:kg)]
-
-#nope keep em all
-Nsnp_pcs <- pca_north$li[,c(1:kg)]
-
-#now plot data
-Npca_plot_data <- as.data.frame(cbind(genind_vaux_north$pop, Nsnp_pcs))
-Npca_plot_data <- Npca_plot_data %>%
-  rename(pop = "genind_vaux_north$pop")
-ggplot(data = Npca_plot_data)+geom_point(aes(Axis1, Axis2, color = pop)) + stat_ellipse(aes(Axis1, Axis2, color = pop)) +theme_classic()
-
-ggplot(data = Npca_plot_data)+geom_point(aes(Axis3, Axis4, color = pop)) + stat_ellipse(aes(Axis3, Axis4, color = pop)) +theme_classic()
-
-
-Ndbmems <- dbmem(NXY_big, store.listw = TRUE)
-
-test <- moran.randtest(Ndbmems, nrepet = 99)
-test
-```
-
-env variable
-```{r}
-Nsites <- sites[c(1:10),]
-
-# now lets get the individual level dataset
-Nsites_big <- sites_big %>%
-  filter(pop != "NC" & pop != "TS")
-
-#first convert all lat lon to geodetic cartesian coords
-
-#anti-meridian causes an issue, let's fix it
-Nsites_big<- Nsites_big %>%
-  mutate(Longitude = if_else(Longitude < 0, Longitude + 360, Longitude))
-
-#now calc geodetic coords
-require(SoDA)
-NXY_big  <- geoXY(Nsites_big[,3], Nsites_big[,4], unit =1000)
-
-NXY_big[,1] <- jitter(NXY_big[,1])
-NXY_big[,2]<- jitter(NXY_big[,2])
-
-
-#now calculate dbMEMs (spatial autocorrelation)
-Ndbmems <- dbmem(NXY_big, MEM.autocor = "all")
-Ndbmems <- dbmem(NXY_big, MEM.autocor = "positive")
-```
-
-
-now test and fit the RDA
-
-```{r, cache = TRUE, message=FALSE, warning = FALSE}
-#global rda
-Nrda_null <- rda(Nsnp_pcs ~ 1, data = Ndbmems)
-Nrda_full <- rda(Nsnp_pcs ~ ., data = Ndbmems)
-
-
-#check that the full model is significant
-anova(Nrda_full) # 0.006 yes it is significant - proceed to variable selection
-
-#what the variance explained
-NadjR2.rda_full <- RsquareAdj(Nrda_full)$adj.r.squared
-NadjR2.rda_full
-
-
-#variable selection
-# here we do variable selection with three different forward selection approaches
-NordiR2 <- ordiR2step(Nrda_null, scope = formula(Nrda_full, data = Ndbmems))
-NordiR2$anova  
-Nordi <- ordistep(Nrda_null, scope = formula(Nrda_full, data = Ndbmems)) 
-Nordi$anova
-Nrda.fs <- forward.sel(Y = Nsnp_pcs, X = Ndbmems, adjR2thresh = NadjR2.rda_full)
-Nrda.fs 
-
-```
-
-North only global model not significant...
-
-# vaux latitude RDA
-
-
-```{r}
-
-#first replace missing data with mean frequency
-X <- tab(genind_vaux, freq = TRUE, NA.method = "mean")
-
-#then run pca
-pca1 <- dudi.pca(X, scale = FALSE, scannf = FALSE, nf = 324)
-
-#check pcs to keep with kaiser-guttman
-
-#kaiser guttman
-cutoff<-mean(pca1$eig)
-kg <- length((pca1$eig)[(pca1$eig)>cutoff])
-barplot(pca1$eig, main = "PCA eigenvalues")
-abline(h = cutoff, col = "red")
-
-#kept all PCs
-snp_pcs <- pca1$li[,c(1:kg)]
-
-lat_data <- cbind(dbmems, abs(sites_big$Latitude))
-colnames(lat_data)[5] <- "lat"
-
-
-lat_rda_null <- rda(snp_pcs ~ 1, data = lat_data)
-lat_rda_full <- rda(snp_pcs ~ ., data = lat_data)
-
-lat_ordiR2 <- ordiR2step(lat_rda_null, scope = formula(lat_rda_full, data = lat_data))
-lat_ordiR2$anova  
-
-lat_ordi <- ordistep(lat_rda_null, scope = formula(lat_rda_full, data = lat_data))
-lat_ordi$anova  
-
-vif.cca(lat_rda_full)
-
-```
-
-Latitude leads into variance inflation (makes sense as it correlates with some of the MEMs), and causes MEM3 and lat to be insignificant. No need to do the latitude RDA since variable selection suggests we shouldn't include it. 
-
-
-```{r}
-
-lat_rda_final <- rda(snp_pcs ~ MEM1 + MEM2 + lat, data = lat_data)
-
-vif.cca(lat_rda_final)
-
-
-#testing signficance of constrained axes (how many are interesting)
-rda_axis <- anova.cca(lat_rda_final, by = 'axis', parallel = 3)
-rda_axis$p.adj <- p.adjust (rda_axis$`Pr(>F)`, method = 'holm')
-rda_axis
-
-#testing significance of explanatory variables by margin (each conditioned on all the others)
-rda_expl <-  anova.cca(lat_rda_final, by = 'margin', parallel = 3)
-rda_expl$p.adj <- p.adjust (rda_expl$`Pr(>F)`, method = 'holm')
-rda_expl$pve<- rda_expl$Variance/sum(rda_expl$Variance)
-
-rda_expl
-
-#commented out below because lat not retained so already did this analysis
-
-vp <- varpart(snp_pcs , lat_data[,c(1,2)] , lat_data[,5])
-vp
-
-rda_con_spatial<-rda(snp_pcs ~  lat + Condition(MEM1 + MEM2), data = lat_data)
-anova(rda_con_spatial)
-
-rda_sum<-summary(lat_rda_final, axes = c(2))
-scores <- as.data.frame(rda_sum$sites)
-scores$pop<-genind_vaux$pop
-scores$lat <- lat_data$lat
-
-
-#species scores
-arrows<-as.data.frame(rda_sum$biplot)
-
-#plot by lat
-#ggplot()+geom_point(aes(RDA1, RDA2, color = lat), data = scores)+geom_segment(data=arrows, aes(x=0, y=0, xend=RDA1, yend=RDA2), arrow=arrow(length=unit(0.2,"cm")), color="black")+stat_ellipse(aes(RDA1, RDA2, color = pop), data = scores)+theme_classic()+xlab("Redundant Axis 1\n1.5% of Total Variance")+ylab("Redundant Axis 2\n0.48% of Total Variance")+scale_color_viridis_c()
-
-
-#plot by pop
-ggplot()+geom_point(aes(RDA1, RDA2, color = pop), data = scores)+geom_segment(data=arrows, aes(x=0, y=0, xend=RDA1, yend=RDA2), arrow=arrow(length=unit(0.2,"cm")), color="black")+geom_text(data=arrows, aes(x=RDA1+RDA1*0.3, y=RDA2+RDA2*0.3, label=c("MEM1", "MEM2", "Latitude")), size = 4,  color="black")+stat_ellipse(aes(RDA1, RDA2, color = pop), data = scores)+theme_classic()+xlab("Redundant Axis 1\n1.5% of Total Variance")+ylab("Redundant Axis 2\n0.48% of Total Variance")+scale_color_discrete()#+scale_color_viridis_d(option = "A")
-```
-
-adding latitude leads to insignificant rda2 (e shouldn't include it anyway because it doesn't make it out of variable selection)
-
-# vaux SNP RDA
  here we run the SNP based RDA to pull outlier SNPs for the two RDA axes we know are signficant. 
  
  
-Here I take what I've learned from the cRDAs to find spatial outliers SNPs that are candidates for a GTseq panel
+Here I take what I've learned from the cRDA to find spatial outliers SNPs that are candidates for a GTseq panel
 
 First we collect the SNPs for spatial structure alone
 
@@ -1721,7 +940,913 @@ maf_comp <- as.data.frame(rbind(x,y))
 ggplot(data=maf_comp)+geom_density(aes(x = maf, color= set))+xlim(0, 0.5)
 ```
 
-same. this suggests either this inference method is baised towards common SNPs (makes sense) or structure at this scale lies more with common than rare SNPs. in either case it suggests that "neutral" SNPs might most useful if they are biased towards common SNPs rather than evenly representing the SFS.
+same. this suggests either this inference method is biased towards common SNPs (makes sense) or structure at this scale lies more with common than rare SNPs. in either case it suggests that "neutral" SNPs might most useful if they are biased towards common SNPs rather than evenly representing the SFS.
+
+
+
+## Genetic Data
+
+To fit the cRDA we need to get the PCs of genetic variation for each individual and the dbmems into a dataframe
+
+First the PCs for the full dataset
+```{r, cache = TRUE, eval = FALSE}
+#first replace missing data with mean frequency
+X <- tab(genind, freq = TRUE, NA.method = "mean")
+
+#then run pca
+pca1 <- dudi.pca(X, scale = FALSE, scannf = FALSE, nf = 324)
+
+#check pcs to keep with kaiser-guttman
+
+#kaiser guttman
+cutoff<-mean(pca1$eig)
+kg <- length((pca1$eig)[(pca1$eig)>cutoff])
+barplot(pca1$eig, main = "PCA eigenvalues")
+abline(h = cutoff, col = "red")
+
+#kept 149 PCs that exceed kaiserguttman, nope keep em all
+snp_pcs <- pca1$li#[,c(1:kg)]
+
+```
+
+Using the kaiser-guttman criteria, we kept the first 129 PCs in the full SNP dataset.
+
+Now Let's take a look at these populations in PC space. 
+```{r cache = TRUE, message=FALSE, warning=FALSE, eval = FALSE}
+#now plot data
+pca_plot_data <- as.data.frame(cbind(genind$pop, snp_pcs))
+pca_plot_data <- pca_plot_data %>%
+  rename(pop = "genind$pop")
+ggplot(data = pca_plot_data)+geom_point(aes(Axis1, Axis2, color = pop)) + stat_ellipse(aes(Axis1, Axis2, color = pop)) +theme_classic()
+
+ggplot(data = pca_plot_data)+geom_point(aes(Axis1, Axis3, color = pop)) + stat_ellipse(aes(Axis1, Axis3, color = pop)) +theme_classic()
+```
+
+No surpises here, same results as Vaux ms. Fst is too low for PCA to discriminate among pops within a gyre, but it does cluster S Pac samples apart from NPac and there are some samples with admixture between these two clusters. The only difference is that there are some strong outliers among the NC samples, potentially these are due to some of the filtering parameters being different. (check later)
+
+
+Now lets do the same, just for the north pacific samples
+```{r, eval = FALSE}
+##### now just the north samples
+
+#first replace missing data with mean frequency
+Xn <- tab(genind_north, freq = TRUE, NA.method = "mean")
+
+#then run pca
+pca_north <- dudi.pca(Xn, scale = FALSE, scannf = FALSE, nf = 245)
+
+#check pcs to keep with kaiser-guttman
+
+#kaiser guttman
+cutoff<-mean(pca_north$eig)
+kg <- length((pca_north$eig)[(pca_north$eig)>cutoff])
+barplot(pca_north$eig, main = "PCA eigenvalues")
+abline(h = cutoff, col = "red")
+
+#kept 117 PCs that exceed kaiserguttman
+#Nsnp_pcs <- pca_north$li[,c(1:kg)]
+
+#nope keep em all
+Nsnp_pcs <- pca_north$li
+
+#now plot data
+Npca_plot_data <- as.data.frame(cbind(genind_north$pop, Nsnp_pcs))
+Npca_plot_data <- Npca_plot_data %>%
+  rename(pop = "genind_north$pop")
+ggplot(data = Npca_plot_data)+geom_point(aes(Axis1, Axis2, color = pop)) + stat_ellipse(aes(Axis1, Axis2, color = pop)) +theme_classic()
+
+ggplot(data = Npca_plot_data)+geom_point(aes(Axis3, Axis4, color = pop)) + stat_ellipse(aes(Axis3, Axis4, color = pop)) +theme_classic()
+
+
+```
+
+Again, no surprises.  No evidence of structure within North Pacific when using PCA.
+
+
+
+### Full Dataset cRDA
+
+
+Now that we have gathered all of our variables, we'll fit the cRDA using the full dataset
+
+Notes:  
+Had trouble understanding why observation of structure in North Pacific was so highly dependent on the SNP dataset used. so I ran the analysis on many separate dataset until I realized that positive results depended on there being near duplicates in PC space. it looks like Vaux used some sequencing replicates that were filtered out in the final manuscript but not in the datasets I used. To confirm that this is how I was observing structure, I ran stacks and did my own filtering, removed potential replicates and then did two more runs for the north pacific: 1 with the true dataset, a second with 30 duplicated individuals. If found no significant structure in N pacific (i.e. p-value of permutation test of full RDA model using Kaiser-guttman cutoff PCs was not significant), but adding duplicate samples led to a highly signficant test and observation of structure at whatever spatial structure I tested.
+
+when we use the deduplicated dataset on the full pacific dataset using my filtering, the full rda is signficant, but the axis that captures variation among N pacific sampling sites is not significant.
+
+first reset the spatial variables for this dataset
+
+```{r dbmems again, message=FALSE, eval = FALSE}
+# First let's get the rough lat and lons for the dataset
+# just manually made a table from Vaux based on sampling map (no location information was provided in ms or supplemental materials)
+
+sites <- read_tsv("input_data/rough_locations.txt")
+
+#now let's focus just on NPAC samples
+Nsites <- sites[c(1:10),]
+
+# now lets get the individual level dataset
+sites_big <- data.frame(pop = genind$pop)
+sites_big <- sites_big %>%
+  left_join(sites, by = c("pop" = "Pop"))
+Nsites_big <- sites_big %>%
+  filter(pop != "NC" & pop != "TS")
+
+#first convert all lat lon to geodetic cartesian coords
+
+#anti-meridian causes an issue, let's fix it
+sites_big<- sites_big %>%
+  mutate(Longitude = if_else(Longitude < 0, Longitude + 360, Longitude))
+Nsites_big<- Nsites_big %>%
+  mutate(Longitude = if_else(Longitude < 0, Longitude + 360, Longitude))
+
+#now calc geodetic coords
+require(SoDA)
+XY_big <- geoXY(sites_big[,3], sites_big[,4], unit =1000)
+NXY_big  <- geoXY(Nsites_big[,3], Nsites_big[,4], unit =1000)
+
+#add jitter
+XY_big[,1] <- jitter(XY_big[,1])
+XY_big[,2]<- jitter(XY_big[,2])
+
+NXY_big[,1] <- jitter(NXY_big[,1])
+NXY_big[,2]<- jitter(NXY_big[,2])
+
+
+#now calculate dbMEMs (spatial autocorrelation)
+dbmems <- dbmem(XY_big, MEM.autocor = "all")
+Ndbmems <- dbmem(NXY_big, MEM.autocor = "all")
+```
+
+Now that dbmems are made let's take a look at them.
+```{r, eval = FALSE}
+# first eigenvalues/Moran's
+barplot(attr(dbmems, "values"), 
+        main = "Eigenvalues of the spatial weighting matrix\nProportional to Moran's I\nFull Dataset", cex.main = 0.7)
+
+barplot(attr(Ndbmems, "values"), 
+        main = "Eigenvalues of the spatial weighting matrix\nProportional to Moran's I\nNorth Pacific Only Dataset", cex.main = 0.7)
+```
+
+For the full dataset only 4 dbMEMs have a positive I (i.e. spatial autocorrelation), while the NPac has 2. Next let's test these to see if they are worth keeping (i.e. if moran's I is greater than 0 with a permutation test). Then we'll plot them in space and see what we have. 
+
+```{r, message = FALSE, warning=FALSE, cache=TRUE, eval = FALSE}
+#first recompute dbmems keeping only positive to speed up rand test (no need to test ones we're not going to use)
+
+dbmems <- dbmem(XY_big, store.listw = TRUE)
+Ndbmems <- dbmem(NXY_big, store.listw = TRUE)
+
+test <- moran.randtest(dbmems, nrepet = 99)
+test
+
+test <- moran.randtest(Ndbmems, nrepet = 99)
+test
+```
+
+
+#### Global Test and Variable Selection
+
+```{r, cache = TRUE, message=FALSE, warning = FALSE, echo = FALSE, eval = FALSE }
+#global rda
+rda_null <- rda(snp_pcs ~ 1, data = dbmems)
+rda_full <- rda(snp_pcs ~ . , data = dbmems)
+
+
+#check that the full model is significant
+anova(rda_full) # 0.002 yes it is significant - proceed to variable selection
+
+#what the variance explained
+adjR2.rda_full <- RsquareAdj(rda_full)$adj.r.squared
+adjR2.rda_full
+
+
+#variable selection
+# here we do variable selection with three different forward selection approaches
+ordiR2 <- ordiR2step(rda_null, scope = formula(rda_full, data = dbmems))
+ordiR2$anova  
+ordi <- ordistep(rda_null, scope = formula(rda_full, data = dbmems)) 
+ordi$anova
+rda.fs <- forward.sel(Y = snp_pcs, X = dbmems, adjR2thresh = adjR2.rda_full)
+rda.fs 
+
+vif.cca(rda_full) # don't need to do this because mems should be orthagonal
+```
+
+
+All variable selection procedures agree on keeping MEM1, forward selection based on p-value along (ordistep) keeps MEM2 as well
+
+
+
+#### Final Model
+
+Now that we have established that the full model is signifcant and done variable selection to identify the spatial structures, let's build the final model. 
+
+```{r, cache=TRUE, eval = FALSE}
+#final model
+#rda_final <- rda(snp_pcs ~ MEM3 + MEM2 + MEM7 + MEM9 + MEM6 , data = mems)
+rda_final <- rda(snp_pcs ~ MEM1 + MEM2 , data = dbmems)
+
+#testing signficance of constrained axes (how many are interesting)
+rda_axis <- anova.cca(rda_final, by = 'axis', parallel = 3)
+rda_axis$p.adj <- p.adjust (rda_axis$`Pr(>F)`, method = 'holm')
+rda_axis
+
+#testing significance of explanatory variables by margin (each conditioned on all the others)
+rda_expl <-  anova.cca(rda_final, by = 'margin', parallel = 3)
+rda_expl$p.adj <- p.adjust (rda_expl$`Pr(>F)`, method = 'holm')
+rda_expl$pve<- rda_expl$Variance/sum(rda_expl$Variance)
+
+rda_expl
+```
+
+Permutation analyses suggest that the only the first redundant axis significantly correlate patterns in the spatial dataset with patterns in the genetic dataset. Separate permutations also show that the selected MEMs significantly explain the PCs.
+
+
+```{r, fig.cap="Screeplot of RDA - red is constrained axes, black is unconstrained axes"}
+## screeplot
+
+constrained_percent <- rda_final$CCA$eig/rda_final$tot.chi*100
+unconstrained_percent <- rda_final$CA$eig/rda_final$tot.chi*100
+barplot (c(constrained_percent, unconstrained_percent), col = c(rep ('red', length (constrained_percent)), rep ('black', length (unconstrained_percent))), las = 2, ylab = '% variation')
+```
+
+#### Full Pacific cRDA Results Summary
+
+```{r, cache = TRUE, eval = FALSE}
+
+## tri plot
+#site score
+rda_sum<-summary(rda_final, axes = c(2))
+scores <- as.data.frame(rda_sum$sites)
+scores$pop<-genind$pop
+
+
+#species scores
+arrows<-as.data.frame(rda_sum$biplot)
+
+#plot by pop
+ggplot()+geom_point(aes(RDA1, RDA2, color = pop), data = scores)+geom_segment(data=arrows, aes(x=0, y=0, xend=RDA1, yend=RDA2), arrow=arrow(length=unit(0.2,"cm")), color="black")+geom_text(data=arrows, aes(x=RDA1+RDA1*0.3, y=RDA2+RDA2*0.3, label=c("MEM1", "MEM2")), size = 4,  color="black")+stat_ellipse(aes(RDA1, RDA2, color = pop), data = scores)+theme_classic()+xlab("Redundant Axis 1\n0.86% of Total Variance\np-value 0.001")+ylab("Redundant Axis 2\n0.38% of Total Variance\np-value 0.17")+scale_color_manual(values = c("#a6cee3", "#1f78b4", "#b2df8a", "#33a02c", "#fb9a99", "#e31a1c", "#fdbf6f", "#ff7f00", "#cab2d6", "#6a3d9a", "#ffff99", "#b15928"))
+
+```
+
+We fit a global model of all variables. This full model was significant. We then performed forward variable selection. Three approaches yielded the same result and we built the final model on MEMs 1, and 2
+
+Only the first RDA axis is significant (i.e. explain significantly more than the equivalent unconstrained axes, Holms adjusted p value < 0.05). All explanatory variables (MEMs) in the final model are also significant (i.e. significantly greater explanation of variance for the variable, once the data is conditioned on all other variables, Holms adjusted p value < 0.05)
+
+Collectively these suggest that there is a significant relationship between genetic variation and spatial autocorrelation (although note this model did not attempt to parse population structure from autocorrelation). The first two constrained axes captured ~ 1.8% of the total variance in the model. Since only the first XXX PCs of genetic variation were included, we can not directly relate this back to FST, but a back of the napkin calculation would suggest we fit about half to total variance in the dataset. This would bring these results in close alignment with the Fst attributed to North vs South population genetic structure. 
+
+When we examine the spatial structures in the RDA triplot we can see that while MEMs 1 and 2 load strongly onto the first redundant axis, and this axis separates North from South pacific populations. This is not surprising given the results from the Vaux MS. 
+
+XXX remnant from keeping mem4 XXX  However, the second redundant axis provides very interesting results that suggest significant spatial structures that "are redundant with" genetic variance within the North Pacific. Specifically redundant axis 2 is driven almost exclusively by MEM4 and this MEM (while distance based and mostly separating Hawaii from all other samples), also maps strongly onto a N-S gradient within the west coast N Pac samples. Indeed when we examine the tri-plot we can observe clinal variation along the West Coast samples. This pattern (RDA2 separates N-S pops and Hawaii), may be due to (a) introgression tails from the southern hemisphere (as suggested by Vaux ms), (b) spatial autocorrelation produced by IBD within the North Pacific, or (c) an adaptive genetic cline. Parsing (c) from (a and b) may be possible with an environmental association analysis, but parsing (a) and (b) may be challenging without haplotypic data. Conducting the analysis on the North Pac only samples (below), may also clarify these patterns
+
+
+### North Pacific cRDA
+
+#### Global Test and Variable Selection
+```{r, cache = TRUE, message=FALSE, warning = FALSE, eval = FALSE}
+#global rda
+Nrda_null <- rda(Nsnp_pcs ~ 1, data = Ndbmems)
+Nrda_full <- rda(Nsnp_pcs ~ ., data = Ndbmems)
+
+
+#check that the full model is significant
+anova(Nrda_full) # 0.006 yes it is significant - proceed to variable selection
+
+#what the variance explained
+NadjR2.rda_full <- RsquareAdj(Nrda_full)$adj.r.squared
+NadjR2.rda_full
+
+
+#variable selection
+# here we do variable selection with three different forward selection approaches
+NordiR2 <- ordiR2step(Nrda_null, scope = formula(Nrda_full, data = Ndbmems))
+NordiR2$anova  
+Nordi <- ordistep(Nrda_null, scope = formula(Nrda_full, data = Ndbmems)) 
+Nordi$anova
+Nrda.fs <- forward.sel(Y = Nsnp_pcs, X = Ndbmems, adjR2thresh = NadjR2.rda_full)
+Nrda.fs 
+
+```
+
+Global is significant, variable selection keeps both MEMs
+
+#### Final Model
+
+Now that we have established that the full model is signifcant and done variable selection to identify the spatial structures, let's build the final model. 
+
+```{r, cache=TRUE, eval = FALSE}
+#final model
+Nrda_final <- rda(Nsnp_pcs ~ MEM2, data = Ndbmems)
+
+#testing signficance of constrained axes (how many are interesting)
+rda_axis <- anova.cca(Nrda_final, by = 'axis', parallel = 3)
+rda_axis$p.adj <- p.adjust (rda_axis$`Pr(>F)`, method = 'holm')
+rda_axis
+
+#testing significance of explanatory variables by margin (each conditioned on all the others)
+rda_expl <-  anova.cca(Nrda_final, by = 'margin', parallel = 3)
+rda_expl$p.adj <- p.adjust (rda_expl$`Pr(>F)`, method = 'holm')
+rda_expl$pve<- rda_expl$Variance/sum(rda_expl$Variance)
+
+rda_expl
+```
+
+Keep 2 RDAs; all MEMs
+
+
+#### North Pacific cRDA Results Summary
+
+
+```{r, cache = TRUE, eval = FALSE}
+
+## tri plot
+#site score
+Nrda_sum<-summary(Nrda_final, axes = c(2))
+Nscores <- as.data.frame(Nrda_sum$sites)
+Nscores$pop<-genind_north$pop
+
+
+#species scores
+Narrows<-as.data.frame(Nrda_sum$biplot)
+
+#plot by pop
+#ggplot()+geom_point(aes(RDA1, RDA2, color = pop), data = Nscores)+geom_segment(data=Narrows, aes(x=0, y=0, xend=RDA1, yend=RDA2), arrow=arrow(length=unit(0.2,"cm")), color="black")+geom_text(data=Narrows, aes(x=RDA1+RDA1*0.3, y=RDA2+RDA2*0.3, label=c("MEM1", "MEM2")), size = 4,  color="black")+stat_ellipse(aes(RDA1, RDA2, color = pop), data = Nscores)+theme_classic()+xlab("Redundant Axis 1\n0.48% of Total Variance\np-value=0.18")+ylab("Redundant Axis 2\n0.44% of Total Variance\np-value=0.54")+scale_color_discrete()+ggtitle("NPAC RDA\nglobal p-value 0.31")#+scale_color_viridis_d(option = "A")
+
+ggplot()+geom_point(aes(RDA1, PC1, color = pop), data = Nscores)+geom_segment(data=Narrows, aes(x=0, y=0, xend=RDA1, yend=PC1), arrow=arrow(length=unit(0.2,"cm")), color="black")+geom_text(data=Narrows, aes(x=RDA1+RDA1*0.3, y=PC1+PC1*0.3, label=c("MEM2")), size = 4,  color="black")+stat_ellipse(aes(RDA1, PC1, color = pop), data = Nscores)+theme_classic()+xlab("Redundant Axis 1\n0.48% of Total Variance\np-value=0.2")+ylab("PC axis 1")+scale_color_discrete()+ggtitle("NPAC RDA\nglobal p-value 0.19")#+scale_color_viridis_d(option = "A")
+```
+
+We fit a global model of all variables. This full model was significant. We then performed forward variable selection. Three approaches yielded the same result and we built the final model on MEMs 1, and 2.
+
+Only the first 2 RDA axes are significant (i.e. explain significantly more than the equivalent unconstrained axes, Holms adjusted p value < 0.05). All explanatory variables (MEMs) in the final model are also significant (i.e. significantly greater explanation of variance for the variable, once the data is conditioned on all other variables, Holms adjusted p value < 0.05)
+
+Collectively these suggest that there is a significant relationship between genetic variation and spatial autocorrelation at the tested scales. The first two constrained axes captured ~ 0.9% of the total variance in the model. Since only the first 117 PCs of genetic variation were included, we can not directly relate this back to FST. 
+
+When we examine the RDA triplot we can see that MEMs 1 and 2 load strongly onto different redundant axes. Three clusters of populations are apparent: eastern (West coast N America), central (Hawaii), and western (Japan + Phillipines). RDA1 (and MEM2) separates all three clusters of populations with western cluster intermediate, while RDA2 (and MEM1) clusters the eastern and central clusters together and spearates the western cluster. Taken together, it is possible to explain a small portion of the genetic variation in the north Pacifc as a result of spatial auotocorrelation among these three clusters, although there may be other demographic and selective scenarios that can produce similar patterns (see discussion below)
+
+
+
+### cRDA Discussion
+
+Both cRDAs show that there are spatial structures at a variety scales that can explain variation in the genetic variation within the Pacific. However synthesizing the results from the North Pacific dataset and the full dataset raises some questions.
+
+__(1) Is there a N-S cline within the N Pac samples, if so why don't we see it in the NPac cRDA?__  
+Since our MEMs are dbMEMs, they are a spectral decomposition of the _distances_ between populations. No dbMEMs in the North Pacific dataset captured this N-S gradient. I'm not sure why the finest scale saptial autocorrelation was not captured by a MEM with positive Moran's I. Perhaps using a different spatial neighborhood to generate MEMs would capture this pattern, or we could just test for it directly by isolating these samples, or fitting for latitude.  
+
+In any case, the absence of the pattern in the North Pac cRDA is most easily explained by the fact that we did not test for it. An explicit test of latitude as an explanation for genetic variation is possible, and we can even parse this from spatial autocorrelation _per se_ with yet another RDA or other canonical ordination approach.
+
+__(2) Is this overfit?__  
+
+Maybe.  
+
+A lesson from population genomics on marine organisms is that we have so much data that we tend to find patterns whenever we look for them. While a lot of authors attribute this to efficiency of selection in large populations coupled with abundant environmental gradients, overfitting is also a concern. Several lines of evidence suggest these results should be robust to overfitting. (1) Only kept principal components of genetic variation that exceeded a criterion, didn't fit on the full dataset and (2) the analysis should be resistant to overfitting in the traditional sense because n (samples) >> p (predictors: MEMs) and we performed variable selection on the tiny number of predictors we did use. However, there's enough variation in the response variables (SNP PCA) that there is a possibility that the TRUE patterns in the dataset we are modeling are not true in nature (i.e. our procedures for avoiding overfitting are all focused on the explanatory variable side). Only validation with new data can confirm. Alternatively, we could attempt to conduct some type of cross-validation approach. This might be worthwhile before selecting SNPs.
+
+__(3) N-S Admixture Cline, N PAC E-W Clusters, Clustered Clines?__
+
+The biggest challenge going forward is that the RDAs have demonstrated that there are genetic patterns at a __diversity__ of spatial scales and patterns. Therefore there is no clear choice for clustering that will allow us to group sampling sites into sub-populations for later genetic stock identification. This is a common problem in seascape genetics: we a trying to cluster a cline.
+
+
+We might be able to parse the N-S cline 
+However the most powerful MEMs are always the ones that are capturing N-S structure. Therefore it seems likely that what's actually going on here is that Latitude is a better predictor of genetics than spatial autocorrelation. We can test this by explicitly including latitude and then doing variance paritioning / pRDA. Because the SWM seems to mostly capture E-W distance, this might actually have some power. 
+
+## Latitude
+
+
+```{r, eval = FALSE}
+lat_data <- cbind(dbmems, abs(sites_big$Latitude))
+colnames(lat_data)[5] <- "lat"
+
+
+lat_rda_null <- rda(snp_pcs ~ 1, data = lat_data)
+lat_rda_full <- rda(snp_pcs ~ ., data = lat_data)
+
+lat_ordiR2 <- ordiR2step(lat_rda_null, scope = formula(lat_rda_full, data = lat_data))
+lat_ordiR2$anova  
+
+# latitude not included in variable selection
+
+
+
+lat_rda_final <- rda(snp_pcs ~ MEM1 + MEM2 + lat, data = lat_data)
+
+vif.cca(lat_rda_final)
+
+
+#testing signficance of constrained axes (how many are interesting)
+rda_axis <- anova.cca(lat_rda_final, by = 'axis', parallel = 3)
+rda_axis$p.adj <- p.adjust (rda_axis$`Pr(>F)`, method = 'holm')
+rda_axis
+
+#testing significance of explanatory variables by margin (each conditioned on all the others)
+rda_expl <-  anova.cca(lat_rda_final, by = 'margin', parallel = 3)
+rda_expl$p.adj <- p.adjust (rda_expl$`Pr(>F)`, method = 'holm')
+rda_expl$pve<- rda_expl$Variance/sum(rda_expl$Variance)
+
+rda_expl
+
+#commented out below because lat not retained so already did this analysis
+
+vp <- varpart(snp_pcs , lat_data[,c(1,2)] , lat_data[,5])
+vp
+
+rda_con_spatial<-rda(snp_pcs ~  lat + Condition(MEM1 + MEM2), data = lat_data)
+anova(rda_con_spatial)
+
+rda_sum<-summary(lat_rda_final, axes = c(2))
+scores <- as.data.frame(rda_sum$sites)
+scores$pop<-genind$pop
+scores$lat <- lat_data$lat
+
+
+#species scores
+arrows<-as.data.frame(rda_sum$biplot)
+
+#plot by lat
+#ggplot()+geom_point(aes(RDA1, RDA2, color = lat), data = scores)+geom_segment(data=arrows, aes(x=0, y=0, xend=RDA1, yend=RDA2), arrow=arrow(length=unit(0.2,"cm")), color="black")+stat_ellipse(aes(RDA1, RDA2, color = pop), data = scores)+theme_classic()+xlab("Redundant Axis 1\n1.5% of Total Variance")+ylab("Redundant Axis 2\n0.48% of Total Variance")+scale_color_viridis_c()
+
+
+#plot by pop
+ggplot()+geom_point(aes(RDA1, RDA2, color = pop), data = scores)+geom_segment(data=arrows, aes(x=0, y=0, xend=RDA1, yend=RDA2), arrow=arrow(length=unit(0.2,"cm")), color="black")+geom_text(data=arrows, aes(x=RDA1+RDA1*0.3, y=RDA2+RDA2*0.3, label=c("MEM1", "MEM2", "Latitude")), size = 4,  color="black")+stat_ellipse(aes(RDA1, RDA2, color = pop), data = scores)+theme_classic()+xlab("Redundant Axis 1\n1.5% of Total Variance")+ylab("Redundant Axis 2\n0.48% of Total Variance")+scale_color_discrete()#+scale_color_viridis_d(option = "A")
+```
+
+
+```{r, eval = FALSE}
+Nlat_data <- cbind(Ndbmems, abs(Nsites_big$Latitude))
+colnames(Nlat_data)[3] <- "lat"
+
+
+Nlat_rda_null <- rda(Nsnp_pcs ~ 1, data = Nlat_data)
+Nlat_rda_full <- rda(Nsnp_pcs ~ ., data = Nlat_data)
+
+anova(Nlat_rda_full)
+
+Nlat_ordiR2 <- ordiR2step(Nlat_rda_null, scope = formula(Nlat_rda_full, data = Nlat_data, Pin = 0.5))
+Nlat_ordiR2$anova  
+
+Nlat_rda_final <- rda(Nsnp_pcs ~ MEM1 + MEM2+ lat, data = Nlat_data)
+
+vif.cca(Nlat_rda_final)
+
+rda_expl <-  anova.cca(Nlat_rda_final, by = 'margin', parallel = 3)
+rda_expl$p.adj <- p.adjust (rda_expl$`Pr(>F)`, method = 'holm')
+rda_expl$pve<- rda_expl$Variance/sum(rda_expl$Variance)
+
+rda_expl
+
+#testing signficance of constrained axes (how many are interesting)
+rda_axis <- anova.cca(Nlat_rda_final, by = 'axis', parallel = 3)
+rda_axis$p.adj <- p.adjust (rda_axis$`Pr(>F)`, method = 'holm')
+rda_axis
+
+
+vp <- varpart(Nsnp_pcs , Nlat_data[,c(1)] , Nlat_data[,c(3)])
+vp
+
+rda_con_spatial<-rda(Nsnp_pcs ~  lat + Condition(MEM1 + MEM2), data = Nlat_data)
+anova(rda_con_spatial)
+
+
+rda_sum<-summary(Nlat_rda_final, axes = c(2))
+scores <- as.data.frame(rda_sum$sites)
+scores$pop<-genind_north$pop
+scores$lat <- Nlat_data$lat
+
+
+#species scores
+arrows<-as.data.frame(rda_sum$biplot)
+
+#plot by lat
+ggplot()+geom_point(aes(RDA1, RDA2, color = lat), data = scores)+geom_segment(data=arrows, aes(x=0, y=0, xend=RDA1, yend=RDA2), arrow=arrow(length=unit(0.2,"cm")), color="black")+geom_text(data=arrows, aes(x=RDA1+RDA1*0.3, y=RDA2+RDA2*0.3, label=c("MEM1", "MEM2", "Latitude")), size = 4,  color="black")+theme_classic()+xlab("Redundant Axis 1\n1.5% of Total Variance")+ylab("Redundant Axis 2\n0.48% of Total Variance")+scale_color_viridis_c()
+
+
+
+#plot by pop
+ggplot()+geom_point(aes(RDA1, RDA2, color = pop), data = scores, alpha = 0.8)+geom_segment(data=arrows, aes(x=0, y=0, xend=RDA1, yend=RDA2), arrow=arrow(length=unit(0.2,"cm")), color="black")+geom_text(data=arrows, aes(x=RDA1+RDA1*0.3, y=RDA2+RDA2*0.3, label=c("MEM1", "MEM2", "Latitude")), size = 4,  color="black")+stat_ellipse(aes(RDA1, RDA2, color = pop), data = scores)+theme_classic()+xlab("Redundant Axis 1\n0.48% of Total Variance\npvalue = 0.139 ")+ylab("Redundant Axis 2\n0.46% of Total Variance\np-value = 0.52")#+scale_color_manual(values = c("#a6cee3", "#1f78b4", "#b2df8a", "#33a02c", "#fb9a99", "#e31a1c", "#fdbf6f", "#ff7f00", "#cab2d6", "#6a3d9a", "#ffff99", "#b15928"))
+```
+
+
+```{r, eval = FALSE}
+Nlat_data <- cbind(Ndbmems, abs(Nsites_big$Latitude))
+colnames(Nlat_data)[3] <- "lat"
+
+
+Nlat_rda_null <- rda(Nsnp_pcs ~ 1, data = Nlat_data)
+Nlat_rda_full <- rda(Nsnp_pcs ~ ., data = Nlat_data)
+
+Nlat_ordiR2 <- ordiR2step(Nlat_rda_null, scope = formula(Nlat_rda_full, data = Nlat_data))
+Nlat_ordiR2$anova  
+
+ordi <- ordistep(Nlat_rda_null, scope = formula(Nlat_rda_full, data = Ndbmems)) 
+ordi$anova
+rda.fs <- forward.sel(Y = Xn, X = Ndbmems, adjR2thresh = adjR2.rda_full)
+rda.fs
+
+
+Nlat_rda_final <- rda(Nsnp_pcs ~ lat , data = Nlat_data)
+
+vif.cca(lat_rda_final)
+
+rda_expl <-  anova.cca(Nlat_rda_final, by = 'margin', parallel = 3)
+rda_expl$p.adj <- p.adjust (rda_expl$`Pr(>F)`, method = 'holm')
+rda_expl$pve<- rda_expl$Variance/sum(rda_expl$Variance)
+
+
+vp <- varpart(snp_pcs , lat_data[,c(1,2,4)] , lat_data[,c(5)])
+
+rda_con_spatial<-rda(snp_pcs ~  lat + Condition(MEM1 + MEM2 + MEM4), data = lat_data)
+
+rda_sum<-summary(Nlat_rda_final, axes = c(2))
+scores <- as.data.frame(rda_sum$sites)
+scores$pop<-genind_north$pop
+scores$lat <- Nlat_data$lat
+
+
+#species scores
+arrows<-as.data.frame(rda_sum$biplot)
+
+#plot by lat
+ggplot()+geom_point(aes(RDA1, PC1, color = lat), data = scores)+geom_segment(data=arrows, aes(x=0, y=0, xend=RDA1, yend=RDA2), arrow=arrow(length=unit(0.2,"cm")), color="black")+stat_ellipse(aes(RDA1, RDA2, color = lat), data = scores)+theme_classic()+xlab("Redundant Axis 1\n1.5% of Total Variance")+ylab("Redundant Axis 2\n0.48% of Total Variance")+scale_color_viridis_c()
+
+
+
+#plot by pop
+ggplot()+geom_point(aes(RDA1, PC1, color = pop), data = scores, alpha = 0.8)+geom_segment(data=arrows, aes(x=0, y=0, xend=RDA1, yend=PC1), arrow=arrow(length=unit(0.2,"cm")), color="black")+geom_text(data=arrows, aes(x=RDA1+RDA1*0.3, y=PC1+PC1*0.3, label=c("Lat")), size = 4,  color="black")+stat_ellipse(aes(RDA1, PC1, color = pop), data = scores)+theme_classic()+xlab("Redundant Axis 1\n1.5% of Total Variance")+ylab("Redundant Axis 2\n0.48% of Total Variance")+scale_color_manual(values = c("#a6cee3", "#1f78b4", "#b2df8a", "#33a02c", "#fb9a99", "#e31a1c", "#fdbf6f", "#ff7f00", "#cab2d6", "#6a3d9a", "#ffff99", "#b15928"))
+```
+ 
+# RDA outlier analysis
+
+Here I take what I've learned from the cRDAs to find spatial outliers SNPs that are candidates for a GTseq panel
+
+First we collect the SNPs for spatial structure alone
+
+The first step is fitting the RDAs and testing all the variables
+```{r, cache = TRUE, eval = FALSE}
+snp_rda_null <- rda(X ~ 1, data = dbmems)
+snp_rda_full <- rda(X ~ . , data = dbmems)
+
+
+#check that the full model is significant
+anova(snp_rda_full) # 0.002 yes it is significant - proceed to variable selection
+
+#what the variance explained
+adjR2.rda_full <- RsquareAdj(snp_rda_full)$adj.r.squared
+adjR2.rda_full
+
+
+#variable selection
+# here we do variable selection with three different forward selection approaches
+snp_ordiR2 <- ordiR2step(snp_rda_null, scope = formula(snp_rda_full, data = dbmems))
+snp_ordiR2$anova  
+snpordi <- ordistep(snp_rda_null, scope = formula(snp_rda_full, data = dbmems)) 
+snpordi$anova
+#rda.fs <- forward.sel(Y = snp_pcs, X = dbmems, adjR2thresh = adjR2.rda_full)
+#rda.fs 
+
+```
+
+```{r, cache = TRUE, eval = FALSE}
+snp_rda_final <- rda(X ~ MEM1 + MEM2, data = dbmems)
+
+#testing signficance of constrained axes (how many are interesting)
+rda_axis <- anova.cca(snp_rda_final, by = 'axis', parallel = 3)
+rda_axis$p.adj <- p.adjust (rda_axis$`Pr(>F)`, method = 'holm')
+rda_axis
+
+#testing significance of explanatory variables by margin (each conditioned on all the others)
+rda_expl <-  anova.cca(snp_rda_final, by = 'margin', parallel = 3)
+rda_expl$p.adj <- p.adjust (rda_expl$`Pr(>F)`, method = 'holm')
+rda_expl$pve<- rda_expl$Variance/sum(rda_expl$Variance)
+
+rda_expl
+
+## tri plot
+#site score
+rda_sum<-summary(snp_rda_final, axes = c(2))
+scores <- as.data.frame(rda_sum$sites)
+scores$pop<-genind$pop
+
+
+#species scores
+arrows<-as.data.frame(rda_sum$biplot)
+
+#plot by pop
+ggplot()+geom_point(aes(RDA1, RDA2, color = pop), data = scores)+geom_segment(data=arrows, aes(x=0, y=0, xend=RDA1, yend=RDA2), arrow=arrow(length=unit(0.2,"cm")), color="black")+geom_text(data=arrows, aes(x=RDA1+RDA1*0.3, y=RDA2+RDA2*0.3, label=c("MEM1", "MEM2")), size = 4,  color="black")+stat_ellipse(aes(RDA1, RDA2, color = pop), data = scores)+theme_classic()+xlab("Redundant Axis 1\n1.5% of Total Variance")+ylab("Redundant Axis 2\n0.48% of Total Variance")+scale_color_discrete()#+scale_color_viridis_d(option = "A")
+
+```
+
+```{r, cache = TRUE, eval = FALSE}
+
+#north snp rda
+
+Nsnp_rda_null <- rda(Xn ~ 1, data = Ndbmems)
+Nsnp_rda_full <- rda(Xn ~ . , data =Ndbmems)
+
+
+#check that the full model is significant
+anova(Nsnp_rda_full) # 0.002 yes it is significant - proceed to variable selection
+
+#what the variance explained
+adjR2.rda_full <- RsquareAdj(Nsnp_rda_full)$adj.r.squared
+adjR2.rda_full
+
+
+#variable selection
+# here we do variable selection with three different forward selection approaches
+Nsnp_ordiR2 <- ordiR2step(Nsnp_rda_null, scope = formula(Nsnp_rda_full, data = Ndbmems))
+Nsnp_ordiR2$anova  
+Nordi <- ordistep(Nsnp_rda_null, scope = formula(Nsnp_rda_full, data = Ndbmems)) 
+Nordi$anova
+#rda.fs <- forward.sel(Y = Xn, X = Ndbmems, adjR2thresh = adjR2.rda_full)
+#rda.fs 
+
+vif.cca(rda_full) # don't need to do this because mems should be orthagonal
+
+Nsnp_rda_final <- rda(Xn ~ MEM1 + MEM2, data = Ndbmems)
+
+## tri plot
+#site score
+rda_sum<-summary(Nsnp_rda_final, axes = c(2))
+scores <- as.data.frame(rda_sum$sites)
+scores$pop<-genind_north$pop
+
+
+#species scores
+arrows<-as.data.frame(rda_sum$biplot)
+
+#plot by pop
+ggplot()+geom_point(aes(RDA1, RDA2, color = pop), data = scores)+geom_segment(data=arrows, aes(x=0, y=0, xend=RDA1, yend=RDA2), arrow=arrow(length=unit(0.2,"cm")), color="black")+geom_text(data=arrows, aes(x=RDA1+RDA1*0.3, y=RDA2+RDA2*0.3, label=c("MEM1", "MEM2")), size = 4,  color="black")+stat_ellipse(aes(RDA1, RDA2, color = pop), data = scores)+theme_classic()+xlab("Redundant Axis 1\n1.5% of Total Variance")+ylab("Redundant Axis 2\n0.48% of Total Variance")+scale_color_discrete()#+scale_color_viridis_d(option = "A")
+```
+
+north pac SNP rda: not significant
+
+Now that the RDAs are fit let's pull out the SNPs that load onto the RDs.
+
+```{r, eval = FALSE}
+snp_loading <- as.data.frame(scores(snp_rda_final, display = "species"))
+
+n_snp_loading <- as.data.frame(scores(Nsnp_rda_final, display = "species"))
+
+a <- ggplot(data = snp_loading)+geom_histogram(aes(x =scale(RDA1)))+theme_classic()+ggtitle(paste("Full Pacific RDA 1\n",sum(abs(scale(snp_loading$RDA1)) > 3)/2, sep = "" ))+xlab("Z-scores of SNP loadings")+geom_vline(aes(xintercept = 3), color = "red")+geom_vline(aes(xintercept = -3), color = "red")
+
+b <- ggplot(data = snp_loading)+geom_histogram(aes(x =scale(RDA2)))+theme_classic()+ggtitle(paste("Full Pacific RDA 2\n",sum(abs(scale(snp_loading$RDA2)) > 3)/2, sep = "" ))+xlab("Z-scores of SNP loadings")+geom_vline(aes(xintercept = 3), color = "red")+geom_vline(aes(xintercept = -3), color = "red")
+
+c <- ggplot(data = n_snp_loading)+geom_histogram(aes(x =scale(RDA1)))+theme_classic()+ggtitle(paste("North Pacific RDA 1\n",sum(abs(scale(n_snp_loading$RDA1)) > 3)/2, sep = "" ))+xlab("Z-scores of SNP loadings")+geom_vline(aes(xintercept = 3), color = "red")+geom_vline(aes(xintercept = -3), color = "red")
+
+d <- ggplot(data = n_snp_loading)+geom_histogram(aes(x =scale(RDA2)))+theme_classic()+ggtitle(paste("North Pacific RDA 1\n",sum(abs(scale(n_snp_loading$RDA2)) > 3)/2, sep = "" ))+xlab("Z-scores of SNP loadings")+geom_vline(aes(xintercept = 3), color = "red")+geom_vline(aes(xintercept = -3), color = "red")
+
+cowplot::plot_grid(a,b,c,d)
+
+#count the number of outliers 
+sum(abs(scale(snp_loading$RDA1)) > 3)/2
+sum(abs(scale(snp_loading$RDA2)) > 3)/2
+sum(abs(scale(n_snp_loading$RDA1)) > 3)/2
+sum(abs(scale(n_snp_loading$RDA2)) > 3)/2
+```
+
+Are SNPs that fall into the tails of these distributions rare or common?
+
+```{r, eval = FALSE}
+
+n_s_snps <- row.names(snp_loading[which(abs(scale(snp_loading$RDA1)) > 3,),])
+n_s_snps <- str_sub(n_s_snps, 1, nchar(n_s_snps)-2)
+n_s_snps <- genind[loc = n_s_snps]
+
+mafs_n_s <- minorAllele(n_s_snps)
+mafs_all <- minorAllele(genind)
+
+x <- as.data.frame(cbind(mafs_n_s, rep("n_s", length(mafs_n_s))))
+y <- as.data.frame(cbind(mafs_all, rep("all", length(mafs_all))))
+colnames(x) <- c("maf", "set")
+colnames(y) <- c("maf", "set")
+y$maf <- as.numeric(levels(y$maf))[y$maf]
+x$maf <- as.numeric(levels(x$maf))[x$maf]
+
+
+maf_comp <- as.data.frame(rbind(x,y)) 
+
+ggplot(data=maf_comp)+geom_density(aes(x = maf, color= set))+xlim(0, 0.5)
+```
+
+Common alleles are vastly over-represented among those that load strongly onto the axis separating N from S pacific samples.
+
+What about the non-significant rda axes from north pac
+
+```{r, eval = FALSE}
+
+n_s_snps <- row.names(snp_loading[which(abs(scale(n_snp_loading$RDA1)) > 3,),])
+n_s_snps <- str_sub(n_s_snps, 1, nchar(n_s_snps)-2)
+n_s_snps <- genind_north[loc = n_s_snps]
+
+mafs_n_s <- minorAllele(n_s_snps)
+mafs_all <- minorAllele(genind_north)
+
+x <- as.data.frame(cbind(mafs_n_s, rep("n_s", length(mafs_n_s))))
+y <- as.data.frame(cbind(mafs_all, rep("all", length(mafs_all))))
+colnames(x) <- c("maf", "set")
+colnames(y) <- c("maf", "set")
+y$maf <- as.numeric(levels(y$maf))[y$maf]
+x$maf <- as.numeric(levels(x$maf))[x$maf]
+
+
+maf_comp <- as.data.frame(rbind(x,y)) 
+
+ggplot(data=maf_comp)+geom_density(aes(x = maf, color= set))+xlim(0, 0.5)
+```
+
+```{r, eval = FALSE}
+priv <- poppr::private_alleles(genind)
+rowSums(priv)
+
+
+```
+
+
+
+# Vaux north rda
+```{r, eval = FALSE}
+#lets collect just the north pacific
+genind_vaux_north <- genind_vaux[pop(genind_vaux) != "TS" & pop(genind_vaux) != "NC"]
+
+
+#first replace missing data with mean frequency
+Xn <- tab(genind_vaux_north, freq = TRUE, NA.method = "mean")
+
+#then run pca
+pca_north <- dudi.pca(Xn, scale = FALSE, scannf = FALSE, nf = 245)
+
+#check pcs to keep with kaiser-guttman
+
+#kaiser guttman
+cutoff<-mean(pca_north$eig)
+kg <- length((pca_north$eig)[(pca_north$eig)>cutoff])
+barplot(pca_north$eig, main = "PCA eigenvalues")
+abline(h = cutoff, col = "red")
+
+#kept 117 PCs that exceed kaiserguttman
+#Nsnp_pcs <- pca_north$li[,c(1:kg)]
+
+#nope keep em all
+Nsnp_pcs <- pca_north$li[,c(1:kg)]
+
+#now plot data
+Npca_plot_data <- as.data.frame(cbind(genind_vaux_north$pop, Nsnp_pcs))
+Npca_plot_data <- Npca_plot_data %>%
+  rename(pop = "genind_vaux_north$pop")
+ggplot(data = Npca_plot_data)+geom_point(aes(Axis1, Axis2, color = pop)) + stat_ellipse(aes(Axis1, Axis2, color = pop)) +theme_classic()
+
+ggplot(data = Npca_plot_data)+geom_point(aes(Axis3, Axis4, color = pop)) + stat_ellipse(aes(Axis3, Axis4, color = pop)) +theme_classic()
+
+
+Ndbmems <- dbmem(NXY_big, store.listw = TRUE)
+
+test <- moran.randtest(Ndbmems, nrepet = 99)
+test
+```
+
+env variable
+```{r, eval = FALSE}
+Nsites <- sites[c(1:10),]
+
+# now lets get the individual level dataset
+Nsites_big <- sites_big %>%
+  filter(pop != "NC" & pop != "TS")
+
+#first convert all lat lon to geodetic cartesian coords
+
+#anti-meridian causes an issue, let's fix it
+Nsites_big<- Nsites_big %>%
+  mutate(Longitude = if_else(Longitude < 0, Longitude + 360, Longitude))
+
+#now calc geodetic coords
+require(SoDA)
+NXY_big  <- geoXY(Nsites_big[,3], Nsites_big[,4], unit =1000)
+
+NXY_big[,1] <- jitter(NXY_big[,1])
+NXY_big[,2]<- jitter(NXY_big[,2])
+
+
+#now calculate dbMEMs (spatial autocorrelation)
+Ndbmems <- dbmem(NXY_big, MEM.autocor = "all")
+Ndbmems <- dbmem(NXY_big, MEM.autocor = "positive")
+```
+
+
+now test and fit the RDA
+
+```{r, cache = TRUE, message=FALSE, warning = FALSE, eval = FALSE}
+#global rda
+Nrda_null <- rda(Nsnp_pcs ~ 1, data = Ndbmems)
+Nrda_full <- rda(Nsnp_pcs ~ ., data = Ndbmems)
+
+
+#check that the full model is significant
+anova(Nrda_full) # 0.006 yes it is significant - proceed to variable selection
+
+#what the variance explained
+NadjR2.rda_full <- RsquareAdj(Nrda_full)$adj.r.squared
+NadjR2.rda_full
+
+
+#variable selection
+# here we do variable selection with three different forward selection approaches
+NordiR2 <- ordiR2step(Nrda_null, scope = formula(Nrda_full, data = Ndbmems))
+NordiR2$anova  
+Nordi <- ordistep(Nrda_null, scope = formula(Nrda_full, data = Ndbmems)) 
+Nordi$anova
+Nrda.fs <- forward.sel(Y = Nsnp_pcs, X = Ndbmems, adjR2thresh = NadjR2.rda_full)
+Nrda.fs 
+
+```
+
+North only global model not significant...
+
+# vaux latitude RDA
+
+
+```{r, eval = FALSE}
+
+#first replace missing data with mean frequency
+X <- tab(genind_vaux, freq = TRUE, NA.method = "mean")
+
+#then run pca
+pca1 <- dudi.pca(X, scale = FALSE, scannf = FALSE, nf = 324)
+
+#check pcs to keep with kaiser-guttman
+
+#kaiser guttman
+cutoff<-mean(pca1$eig)
+kg <- length((pca1$eig)[(pca1$eig)>cutoff])
+barplot(pca1$eig, main = "PCA eigenvalues")
+abline(h = cutoff, col = "red")
+
+#kept all PCs
+snp_pcs <- pca1$li[,c(1:kg)]
+
+lat_data <- cbind(dbmems, abs(sites_big$Latitude))
+colnames(lat_data)[5] <- "lat"
+
+
+lat_rda_null <- rda(snp_pcs ~ 1, data = lat_data)
+lat_rda_full <- rda(snp_pcs ~ ., data = lat_data)
+
+lat_ordiR2 <- ordiR2step(lat_rda_null, scope = formula(lat_rda_full, data = lat_data))
+lat_ordiR2$anova  
+
+lat_ordi <- ordistep(lat_rda_null, scope = formula(lat_rda_full, data = lat_data))
+lat_ordi$anova  
+
+vif.cca(lat_rda_full)
+
+```
+
+Latitude leads into variance inflation (makes sense as it correlates with some of the MEMs), and causes MEM3 and lat to be insignificant. No need to do the latitude RDA since variable selection suggests we shouldn't include it. 
+
+
+```{r, eval = FALSE}
+
+lat_rda_final <- rda(snp_pcs ~ MEM1 + MEM2 + lat, data = lat_data)
+
+vif.cca(lat_rda_final)
+
+
+#testing signficance of constrained axes (how many are interesting)
+rda_axis <- anova.cca(lat_rda_final, by = 'axis', parallel = 3)
+rda_axis$p.adj <- p.adjust (rda_axis$`Pr(>F)`, method = 'holm')
+rda_axis
+
+#testing significance of explanatory variables by margin (each conditioned on all the others)
+rda_expl <-  anova.cca(lat_rda_final, by = 'margin', parallel = 3)
+rda_expl$p.adj <- p.adjust (rda_expl$`Pr(>F)`, method = 'holm')
+rda_expl$pve<- rda_expl$Variance/sum(rda_expl$Variance)
+
+rda_expl
+
+#commented out below because lat not retained so already did this analysis
+
+vp <- varpart(snp_pcs , lat_data[,c(1,2)] , lat_data[,5])
+vp
+
+rda_con_spatial<-rda(snp_pcs ~  lat + Condition(MEM1 + MEM2), data = lat_data)
+anova(rda_con_spatial)
+
+rda_sum<-summary(lat_rda_final, axes = c(2))
+scores <- as.data.frame(rda_sum$sites)
+scores$pop<-genind_vaux$pop
+scores$lat <- lat_data$lat
+
+
+#species scores
+arrows<-as.data.frame(rda_sum$biplot)
+
+#plot by lat
+#ggplot()+geom_point(aes(RDA1, RDA2, color = lat), data = scores)+geom_segment(data=arrows, aes(x=0, y=0, xend=RDA1, yend=RDA2), arrow=arrow(length=unit(0.2,"cm")), color="black")+stat_ellipse(aes(RDA1, RDA2, color = pop), data = scores)+theme_classic()+xlab("Redundant Axis 1\n1.5% of Total Variance")+ylab("Redundant Axis 2\n0.48% of Total Variance")+scale_color_viridis_c()
+
+
+#plot by pop
+ggplot()+geom_point(aes(RDA1, RDA2, color = pop), data = scores)+geom_segment(data=arrows, aes(x=0, y=0, xend=RDA1, yend=RDA2), arrow=arrow(length=unit(0.2,"cm")), color="black")+geom_text(data=arrows, aes(x=RDA1+RDA1*0.3, y=RDA2+RDA2*0.3, label=c("MEM1", "MEM2", "Latitude")), size = 4,  color="black")+stat_ellipse(aes(RDA1, RDA2, color = pop), data = scores)+theme_classic()+xlab("Redundant Axis 1\n1.5% of Total Variance")+ylab("Redundant Axis 2\n0.48% of Total Variance")+scale_color_discrete()#+scale_color_viridis_d(option = "A")
+```
+
+adding latitude leads to insignificant rda2 (e shouldn't include it anyway because it doesn't make it out of variable selection)
+
 
 
 # Hierararchical Structure
