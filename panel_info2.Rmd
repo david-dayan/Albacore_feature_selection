@@ -1,0 +1,134 @@
+---
+title: "Panel Metadata Organization 2"
+output:
+  html_document:
+    df_print: paged
+    code_folding: hide
+    toc: true
+    toc_float: true
+    toc_collapsed: false
+---
+
+```{r, message=FALSE, warning=FALSE}
+require(tidyverse)
+require(knitr)
+require(magrittr)
+```
+
+# Summary
+
+This notebook creates and logs the panel information for the albacore gtseq panel, but with the final panel after optimization by Nate Campbell
+
+# Panel Version
+
+Tal289
+
+# Primer Design Summary
+
+Sequences containing a set of 495 SNP loci and one sex-linked marker were provided for GT-seq primer design. Primer sets meeting the physical properties for GT-seq and filtered for expected performance in multiplex PCR (N = 332) were designed. Primers for 15 “neutral” markers with lengths greater than 60bp were excluded to reduce primer costs (Nmarkers = 317). The initial test library returned an average on-target rate of 31% and 28 loci were identified that contributed to most of the off-target sequences. Primers for the 28 loci producing primer artifacts were omitted from a new primer pool and a validation library was prepared using the remaining 289 primer sets. The overall on-target rate for the validation library was 61% among the samples that performed well. Further analysis of the dataset identified a few other primers contributing to the off-target signal. 
+
+The final round of primer design (~Mar 22, 2021) produced 332 markers and is in the directory ./albacore_gtseq332. 
+
+The final, optimized panel (Tal 289) info is in directory ./nate_final_panel and uploaded to the GitHub Reposity for SFGL GTseq panels (https://github.com/State-Fisheries-Genomics-Lab/GT-seq) 
+
+
+
+# Panel Metadata
+
+Here we make all the panel info files to store on the SFGL GTseq github repo.
+
+```{r, message=FALSE, warning=FALSE}
+# load info from primer design input notebook
+load("primer_design_notebook.RData")
+
+#collect some additional info (filtered out previously)
+axis1_snps <- read_tsv("panel_info/vaux_snp_rda_outliers_axis1.txt")
+axis2_snps <- read_tsv("panel_info/vaux_snp_rda_outliers_axis2.txt")
+axis1_snps$axis <- "axis1_N_S"
+axis2_snps$axis <- "axis2_withinNPAC"
+spatial_snps_full <- bind_rows(axis2_snps, axis1_snps)
+spatial_consensus$snpID <- paste(spatial_consensus$contig, spatial_consensus$pos, sep= "_")
+
+#prep input dfs for merge
+n_s_84_info$final_ID <- paste(n_s_84_info$snpID, "_fst", sep = "")
+n_s_consensus$final_ID <- paste(n_s_consensus$snpID, "_fst", sep = "")
+n_s_84_full <- n_s_84_info %>%
+  left_join(select(n_s_consensus, -one_of( "contig", "snpID", "strand", "final_ID", "filter")), by = c("stacks_catalog_number" = "stacks_catalog_number")) %>%
+  left_join(select(all_snps, -one_of(c("strand", "contig"))), by = c("snpID" = "snpID"))
+
+spatial_snps_full <- spatial_snps_full %>%
+  left_join( select(all_snps, -one_of(c("strand"))), by = c("catalog_id" = "catalog_id", "catalog_snp_pos" = "catalog_pos")) %>%
+  left_join(select(spatial_consensus, -one_of( "contig", "strand", "filter", "axis", "pos", "catalog_snp_pos", "snpID" )), by = c("catalog_id" = "catalog_id"))
+
+neutral_full <- neutral_snps %>%
+  left_join( select(all_snps, -one_of(c("strand", "pos", "maf", "maj_allele", "contig"))), by = c("catalog_id" = "catalog_id", "catalog_snp_pos" = "catalog_pos")) %>%
+  left_join(select(neutral_consensus, -one_of( "contig", "strand", "filter", "pos", "catalog_snp_pos", "snpID" )), by = c("catalog_id" = "catalog_id"))
+  
+all_full <- bind_rows(select(n_s_84_full, snpID, single_target_fasta, maf), select(spatial_snps_full, snpID, single_target_fasta, maf), select(neutral_full, snpID, single_target_fasta, maf))
+all_full <-  all_full %>%
+  drop_na() %>%
+  distinct(snpID, .keep_all = TRUE)# some overlap between axis1 spatial and fst snps means the input data is missing for some axis1 snps, but it will be there for same snp under fst, #also some duplicates because 3 SNPs are top outliers in both spatial axes
+
+
+spatial_axis1_snps <- spatial_snps_full[spatial_snps_full$axis == "axis1_N_S", 15]
+spatial_axis2_snps <- spatial_snps_full[spatial_snps_full$axis == "axis2_withinNPAC", 15]
+
+neutral_snp_names <- neutral_full$snpID
+
+#target metadata columns
+# marker name, fwd, rev, probe1, probe2, allele correction value, 201X genome chr, 201x genome pos, vaux_fst_snp, spatial_snp axis 1, spatial snp axis2, neutral snp, radtag consensus (with masked variants), target SNP MAF
+
+#here change primers2 to the final primer sheet
+primers2 <- readxl::read_xlsx("nate_final_panel/albacore_validation_data.xlsx", sheet = 3, col_names = FALSE)
+colnames(primers2) <- c("marker", )
+
+
+primers2$marker_simple <- str_replace(primers2$marker, "(\\w+.1_\\w+)_\\w+", "\\1")
+
+probes <- read_csv("albacore_gtseq332/albacore_gtseq332_ProbeSeqs_75.csv", col_names = c("marker", "allele1", "allele2","probe1", "probe2", "fwd_primer","a1_correction", "a2_correction"))
+
+final_panel_info <- primers2 %>%
+  select(-one_of(c("f_len", "r_len", "type"))) %>%
+  left_join(probes) %>%
+  left_join(all_full, by = c("marker_simple" = "snpID")) %>%
+  mutate(genome_2013_chr = str_replace(marker, "(\\w+.1)_\\w+_\\w+", "\\1" )) %>%
+  mutate(genome_2013_pos = str_replace(marker, "\\w+.1_(\\w+)_\\w+", "\\1" )) %>%
+  mutate(Vaux_fst_outlier = marker_simple %in% n_s_84_info$snpID) %>%
+  mutate(spatial_axis1_outlier = marker_simple %in% spatial_axis1_snps$snpID) %>%
+  mutate(spatial_axis2_outlier = marker_simple %in% spatial_axis2_snps$snpID) %>%
+  mutate(neutral_snp = marker_simple %in% neutral_snp_names)
+  
+# write_tsv(final_panel_info, "./panel_info/albacore_gtseq_panel_1.0.txt")
+#saved this as a spreadsheet with readme and wrote out to gtseq repo
+```
+
+# Post Optimization (Final Panel)
+
+After Nate Campbell conducted optimization, we removed 28 additional markers, made changes to some probe sequences and changed allele correction values for some markers. Let's update the panel info sheet to reflect.
+
+```{r}
+# import Nate's sheet of updated info
+tal304 <- readxl::read_xlsx("nate_final_panel/albacore_validation_data.xlsx", sheet = 3, col_names = FALSE)
+colnames(tal304) <- c("marker", "allele1" ,"allele2", "probe1", "probe2", "fwd_primer",   "a1_correction" ,     "a2_correction"    )
+
+#import panel 1.0 info
+tal332 <- readxl::read_xlsx("panel_info/albacore_gtseq_panel_1.0.xlsx", sheet = 1)
+
+tal289 <- tal332 %>%
+  filter(marker %in% tal304$marker) %>% #first get rid of the 28 markers that NAte eliminated
+  left_join(select(tal304, marker, probe1, probe2, a1_correction, a2_correction), by = c("marker" = "marker")) %>% #then update with new info
+  mutate(probe1.x = case_when(probe1.x != probe1.y ~ probe1.y,
+                              TRUE ~ probe1.x),
+         probe2.x = case_when(probe2.x != probe2.y ~ probe2.y,
+                              TRUE ~ probe2.x),
+         a1_correction.x = case_when(a1_correction.x != a1_correction.y ~ a1_correction.y,
+                              TRUE ~ a1_correction.x),
+         a2_correction.x = case_when(a2_correction.x != a2_correction.y ~ a2_correction.y,
+                              TRUE ~ a2_correction.x)) %>%
+  dplyr::rename(probe1 = probe1.x, probe2 = probe2.x , a1_correction = a1_correction.x, a2_correction = a2_correction.x) %>%
+  select(-ends_with(".y"))
+              
+#write_tsv(tal289, "./panel_info/albacore_gtseq_panel_289.txt")
+
+```
+
