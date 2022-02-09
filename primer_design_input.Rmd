@@ -305,10 +305,10 @@ Fortunately there's already a stacks-calculated FST estimate for all stacks loci
 ```{r, warning=FALSE, message=FALSE, eval = FALSE}
 fst_stacks <- read_tsv("input_data/vaux_data/populations.fst_NP-SP.tsv")
 
-fst_stacks$outlier_84 <- fst_stacks$`# Locus ID` %in% n_s_84_info$catalog_number  
+fst_stacks$outlier_84 <- fst_stacks$`# Locus ID` %in% n_s_84_info$stacks_catalog_number  
 ggplot(data = fst_stacks)+geom_density(aes(x = `Corrected AMOVA Fst`, fill = outlier_84), alpha = 0.5)+theme_classic()
 
-fst_stacks$outlier_84 <- fst_stacks$`# Locus ID` %in% n_s_84_info$catalog_number  
+fst_stacks$outlier_84 <- fst_stacks$`# Locus ID` %in% n_s_84_info$stacks_catalog_number
 ggplot(data = fst_stacks)+geom_density(aes(x = `Corrected AMOVA Fst`, fill = outlier_84), alpha = 0.5)+theme_classic()+xlim(0, 0.2)
 ```
 
@@ -428,7 +428,7 @@ write_tsv(select(n_s_consensus, snpID, single_target_fasta), file = "panel_info/
 # Spatial SNPs
 
 ## Overlap/list
-How many of the 60 N-S (axis 1) RDA outlier SNPs are already in the n_s_84 outlier set?
+How many of the 69 N-S (axis 1) RDA outlier SNPs are already in the n_s_84 outlier set?
 
 ```{r, warning=FALSE, message=FALSE}
 axis1_snps <- read_tsv("panel_info/vaux_snp_rda_outliers_axis1.txt")
@@ -586,6 +586,7 @@ zcat catalog.fa.gz | grep -A1 -m 1 $i
 done
 
 #then wrote these out to a text editor and edited so it had one column for each data field
+
 ```
 
 ```{r, message=FALSE, warning=FALSE}

@@ -177,7 +177,7 @@ Here I run stacks populations on the data with my own filtering. I tried to foll
 - MAF filtering: got rid of MAF 5% filtering (will not have desired effect given other changes I'm making)  
 - MAC filtering: because I got rid of MAF filtering, still wanted to filter singletons, set min-mac to 3 (allele present in at least 2 individuals)
 - r: kept the same as the final Vaux dataset for consistency (SNP must be present in 90% of samples)  
-- p /popmap: set to 1 because ran populations as if pacific was panmictic. Since we don't know how population structure relates to sampling structure yet and some site sample sizes are quite small I didn't want to get rid of too many sites with r: 0.9 , note this didnt work because there was extreme variation in missingness among sampling sites and those with hihgh missingness happened to be on the extremes of the range. when we imputed missing data to the mean this effectively broght the edge populations closer to the center and wiped out any population structure we observed in the smaller dataset  
+- p /popmap: set to 1 because ran populations as if pacific was panmictic. Since we don't know how population structure relates to sampling structure yet and some site sample sizes are quite small I didn't want to get rid of too many sites with r: 0.9 , note this didnt work because there was extreme variation in missingness among sampling sites and those with high missingness happened to be on the extremes of the range. when we imputed missing data to the mean this effectively broght the edge populations closer to the center and wiped out any population structure we observed in the smaller dataset  
 - did NOT LD prune the dataset.  
 - did not do HWE filtering (already doing PSV filtering with HDplot and PARALOG-FINDER 1.0)
 
@@ -735,7 +735,7 @@ rda.fs
 vif.cca(rda_full) # don't need to do this because mems should be orthagonal
 ```
 
-Here one method chooses all three mems, while the other two just keep mem1 and mem2. Not too concerned with overfitting for this analysis, so lets be less conservative and keep all three
+Here one method chooses all three mems, while the other two just keep mem1 and mem2. All reject mem4. Not too concerned with overfitting for this analysis, so lets be less conservative and keep all three
 
 ```{r, cache=TRUE}
 #final model
@@ -771,7 +771,7 @@ scores$pop<-genind_vaux$pop
 arrows<-as.data.frame(rda_sum$biplot)
 
 #plot by pop
-ggplot()+geom_point(aes(RDA1, RDA2, color = pop), data = scores)+geom_segment(data=arrows, aes(x=0, y=0, xend=RDA1, yend=RDA2), arrow=arrow(length=unit(0.2,"cm")), color="black")+geom_text(data=arrows, aes(x=RDA1+RDA1*0.3, y=RDA2+RDA2*0.3, label=c("MEM1", "MEM2","MEM3")), size = 4,  color="black")+stat_ellipse(aes(RDA1, RDA2, color = pop), data = scores)+theme_classic()+xlab("Redundant Axis 1\n~0.7%% of Total Variance\n adjusted p-value 0.012")+ylab("Redundant Axis 2\n0.35% of Total Variance\n adjusted p-value 0.002")+scale_color_manual(values = c("#a6cee3", "#1f78b4", "#b2df8a", "#33a02c", "#fb9a99", "#e31a1c", "#fdbf6f", "#ff7f00", "#cab2d6", "#6a3d9a", "#ffff99", "#b15928"))
+ggplot()+geom_point(aes(RDA1, RDA2, color = pop), data = scores)+geom_segment(data=arrows, aes(x=0, y=0, xend=RDA1, yend=RDA2), arrow=arrow(length=unit(0.2,"cm")), color="black")+geom_text(data=arrows, aes(x=RDA1+RDA1*0.3, y=RDA2+RDA2*0.3, label=c("MEM1", "MEM2","MEM3")), size = 4,  color="black")+stat_ellipse(aes(RDA1, RDA2, color = pop), data = scores)+theme_classic()+xlab("Redundant Axis 1\n~0.7%% of Total Variance\n adjusted p-value 0.003")+ylab("Redundant Axis 2\n0.35% of Total Variance\n adjusted p-value 0.016")+scale_color_manual(values = c("#a6cee3", "#1f78b4", "#b2df8a", "#33a02c", "#fb9a99", "#e31a1c", "#fdbf6f", "#ff7f00", "#cab2d6", "#6a3d9a", "#ffff99", "#b15928"))
 
 
 ```
