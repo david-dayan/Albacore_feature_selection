@@ -1,0 +1,117 @@
+```{r}
+#first replace missing data with mean frequency
+X <- tab(genind_vaux, freq = TRUE, NA.method = "mean")
+
+#then run pca
+pca1 <- dudi.pca(X, scale = FALSE, scannf = FALSE, nf = 324)
+
+#check pcs to keep with kaiser-guttman
+
+#kaiser guttman
+cutoff<-mean(pca1$eig)
+kg <- length((pca1$eig)[(pca1$eig)>cutoff])
+barplot(pca1$eig, main = "PCA eigenvalues")
+abline(h = cutoff, col = "red")
+
+#kept all PCs
+snp_pcs <- pca1$li#[,c(1:kg)]
+
+#now plot data
+pca_plot_data <- as.data.frame(cbind(genind_vaux$pop, snp_pcs))
+pca_plot_data <- pca_plot_data %>%
+  rename(pop = "genind_vaux$pop")
+ggplot(data = pca_plot_data)+geom_point(aes(Axis1, Axis2, color = pop)) + stat_ellipse(aes(Axis1, Axis2, color = pop)) +theme_classic()
+
+ggplot(data = pca_plot_data)+geom_point(aes(Axis1, Axis3, color = pop)) + stat_ellipse(aes(Axis1, Axis3, color = pop)) +theme_classic()
+```
+
+
+```{r}
+dapc_uj <- (dapc(areas_genind_1.0[pop = c("USA", "Japan")], n.da = 1, n.pc = 100))
+
+loadings <- as.data.frame(dapc_uj$var.contr)
+
+ggplot(loadings)+geom_density(aes(x = LD1))+theme_bw()
+
+loadingplot(dapc_uj$var.contr, threshold = 0.01)
+
+plot_data <- as.data.frame(dapc_uj$ind.coord)
+plot_data$pop <- as.character(areas_genind_1.0[pop = c("USA", "Japan")]$pop)
+
+
+ggplot(data=plot_data)+geom_density(aes(x=LD1, color = pop), alpha = 0.5, size = 2) +theme_classic()+scale_color_viridis_d()
+
+```
+
+Now let's test if the top loading SNPs are enriched for spatial axis 2 SNPs.
+
+```{r}
+marker_info <- readxl::read_xlsx("nate_final_panel/albacore_gtseq_panel_289.xlsx", sheet = 1)
+spatial2_markers <- marker_info %>% 
+  filter(spatial_axis2_outlier == TRUE) %>%
+  mutate(marker = str_replace(marker, "\\.", "_")) %>%
+  pull(marker)
+
+neutral_markers <- marker_info %>% 
+  filter(neutral_snp == TRUE) %>%
+  mutate(marker = str_replace(marker, "\\.", "_")) %>%
+  pull(marker)
+
+genind_spatial_2 <- areas_genind_1.0[loc = spatial2_markers , pop = c("USA", "Japan")]
+
+
+X <- tab(genind_spatial_2, freq = TRUE, NA.method = "mean")
+
+#then run pca
+pca1 <- dudi.pca(X, scale = FALSE, scannf = FALSE, nf = 324)
+
+snp_pcs <- pca1$li#[,c(1:kg)]
+
+pca_plot_data <- as.data.frame(cbind(genind_spatial_2$pop, snp_pcs))
+pca_plot_data <- pca_plot_data %>%
+  rename(pop = "genind_spatial_2$pop")
+ggplot(data = pca_plot_data)+geom_point(aes(Axis1, Axis2, color = pop)) + stat_ellipse(aes(Axis1, Axis2, color = pop)) +theme_classic()
+
+ggplot(data = pca_plot_data)+geom_point(aes(Axis5, Axis6, color = pop)) + stat_ellipse(aes(Axis1, Axis2, color = pop)) +theme_classic()
+
+ggplot(data = pca_plot_data)+geom_point(aes(Axis1, Axis3, color = pop)) + stat_ellipse(aes(Axis1, Axis3, color = pop)) +theme_classic()
+```
+
+Where do the spatial axis 2 SNPs lie in the FST distribution?
+```{r}
+require(hierfstat)
+require(kableExtra)
+# first make dataset
+fstat <- genind2hierfstat(areas_genind_1.0[, pop = c("USA", "Japan")])
+colnames(fstat) <- c(pop, names(areas_genind_1.0[, pop = c("USA", "Japan")]$loc.n.all))
+
+fstat_spatial_2 <- genind2hierfstat(areas_genind_1.0[loc = spatial2_markers , pop = c("USA", "Japan")])
+colnames(fstat_spatial_2) <- c(pop, names(areas_genind_1.0[loc = spatial2_markers , pop = c("USA", "Japan")]$loc.n.all))
+
+fstat_neutral <- genind2hierfstat(areas_genind_1.0[loc = neutral_markers , pop = c("USA", "Japan")])
+colnames(fstat_neutral) <- c(pop, names(areas_genind_1.0[loc = neutral_markers , pop = c("USA", "Japan")]$loc.n.all))
+
+#calculate datset wide basic stats
+basicstats <- basic.stats(fstat)
+basicstats_spatial_2 <- basic.stats(fstat_spatial_2)
+basicstats_neutral<- basic.stats(fstat_neutral)
+
+kable(basicstats$overall, caption = "All markers Fstats")
+
+kable(basicstats_spatial_2$overall, caption = "Spatial 2 markers Fstats")
+kable(basicstats_neutral$overall, caption = "All markers Fstats")
+
+```
+
+```{r}
+basicstats$perloc$spatial2 <- if_else(rownames(basicstats$perloc) %in% spatial2_markers, "spatial2", "non-spatial2")
+
+
+ggplot(basicstats$perloc)+geom_histogram(aes(x=Fst, fill=spatial2))+theme_classic()
+
+basicstats$perloc %>%
+  group_by(spatial2) %>%
+  summarise(mean_fst = mean(Fst, na.rm = TRUE), mean_Dst = mean(Dst))
+  
+```
+
